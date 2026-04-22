@@ -682,7 +682,7 @@
         <select class="form-select" style="width:200px" id="timelineProjectFilter" onchange="renderTimeline()">
           <option value="">所有專案</option>
         </select>
-        <button class="btn btn-primary" onclick="showPage('timeline')">＋ 新增 Milestone</button>
+        <button class="btn btn-primary" onclick="openAddMilestoneModal()">＋ 新增 Milestone</button>
       </div>
       <div id="timelineContent">
         <div class="empty-state"><div class="icon">◷</div><p>新增專案後即可設定時程</p></div>
@@ -1514,7 +1514,6 @@ function openProjectModal(projId){
   el('pType').value=p?p.type||'Consumer Monitor':'Consumer Monitor';
   el('pStatus').value=p?p.status||'planning':'planning';
   el('pOwner').value=p?p.owner||'':'';
-  el('pColor').value=p?p.color||'#2563eb':'#2563eb';
   el('pNotes').value=p?p.notes||'':'';
   var spec=p&&p.spec?p.spec:{};
   el('fSize').value=spec.size||'';el('fRes').value=spec.resolution||'';el('fHz').value=spec.refreshRate||'';
