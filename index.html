@@ -6,6 +6,8 @@
 <title>Monitor PM Workbench</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Supabase CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg: #f7f7f5;
@@ -69,7 +71,7 @@
     -webkit-text-fill-color: transparent;
     line-height: 1.2;
   }
-  .nav { flex: 1; padding: 16px 12px; }
+  .nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
   .nav-item {
     display: flex;
     align-items: center;
@@ -130,9 +132,32 @@
   .btn-ghost:hover { background: var(--surface2); color: var(--text); }
   .btn-green { background: var(--green); color: #fff; }
   .btn-green:hover { background: #27b87e; }
+  .btn-danger { background: rgba(217,53,53,.1); color: var(--red); border: none; }
+  .btn-danger:hover { background: rgba(217,53,53,.2); }
   .btn-sm { padding: 5px 12px; font-size: 12px; }
 
   .content { padding: 28px 32px; flex: 1; }
+
+  /* SYNC STATUS BAR */
+  .sync-bar {
+    padding: 8px 32px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .sync-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text3);
+    flex-shrink: 0;
+  }
+  .sync-dot.connected { background: var(--green); }
+  .sync-dot.syncing { background: var(--yellow); animation: pulse 1s infinite; }
+  .sync-dot.error { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
   /* PAGE SECTIONS */
   .page-section { display: none; }
@@ -207,11 +232,11 @@
   }
   td {
     padding: 13px 14px;
-    border-bottom: 1px solid rgba(42,46,69,0.6);
+    border-bottom: 1px solid var(--surface2);
     color: var(--text);
     vertical-align: middle;
   }
-  tr:hover td { background: rgba(255,255,255,0.02); }
+  tr:hover td { background: rgba(0,0,0,0.02); }
   .proj-name { font-weight: 600; font-family: var(--font-display); font-size: 14px; }
   .proj-sku { font-family: var(--font-mono); font-size: 12px; color: var(--text2); margin-top: 2px; }
 
@@ -224,7 +249,7 @@
   .modal-overlay {
     display: none;
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.7);
+    background: rgba(0,0,0,0.55);
     z-index: 1000;
     align-items: center;
     justify-content: center;
@@ -237,8 +262,9 @@
     padding: 28px;
     width: 640px;
     max-width: 95vw;
-    max-height: 85vh;
+    max-height: 90vh;
     overflow-y: auto;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.12);
   }
   .modal-lg { width: 820px; }
   .modal-title {
@@ -264,33 +290,15 @@
     outline: none;
     transition: border-color 0.15s;
   }
-  .form-input:focus, .form-select:focus, .form-textarea:focus {
-    border-color: var(--accent);
-  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--accent); }
   .form-textarea { min-height: 80px; resize: vertical; }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
   /* TIMELINE */
   .milestone-list { display: flex; flex-direction: column; gap: 10px; }
-  .milestone-item {
-    display: flex;
-    gap: 14px;
-    align-items: flex-start;
-  }
-  .milestone-dot-col { display: flex; flex-direction: column; align-items: center; padding-top: 4px; }
-  .milestone-dot {
-    width: 12px; height: 12px;
-    border-radius: 50%;
-    border: 2px solid var(--border);
-    flex-shrink: 0;
-  }
   .milestone-dot.done { background: var(--green); border-color: var(--green); }
-  .milestone-dot.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px rgba(79,124,255,0.5); }
+  .milestone-dot.active { background: var(--accent); border-color: var(--accent); }
   .milestone-dot.late { background: var(--red); border-color: var(--red); }
-  .milestone-line { width: 2px; flex: 1; min-height: 18px; background: var(--border); margin-top: 4px; }
-  .milestone-content { flex: 1; padding-bottom: 16px; }
-  .milestone-name { font-size: 13.5px; font-weight: 600; }
-  .milestone-date { font-size: 12px; color: var(--text2); font-family: var(--font-mono); margin-top: 2px; }
 
   /* ISSUE LIST */
   .issue-item {
@@ -298,10 +306,9 @@
     align-items: flex-start;
     gap: 12px;
     padding: 12px 0;
-    border-bottom: 1px solid rgba(42,46,69,0.5);
+    border-bottom: 1px solid var(--surface2);
   }
   .issue-item:last-child { border-bottom: none; }
-  .issue-icon { font-size: 18px; padding-top: 1px; }
   .issue-text { flex: 1; font-size: 13.5px; line-height: 1.5; }
   .issue-meta { font-size: 11px; color: var(--text3); margin-top: 3px; }
 
@@ -336,6 +343,7 @@
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
   }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   /* API KEY BAR */
   .apikey-bar {
@@ -361,8 +369,6 @@
     outline: none;
   }
   .apikey-bar input:focus { border-color: var(--accent); }
-  .apikey-saved { color: var(--green); font-weight: 600; display:none; }
-  @keyframes spin { to { transform: rotate(360deg); } }
 
   /* SPEC TABLE */
   .spec-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -391,25 +397,13 @@
     font-family: var(--font-body);
     padding: 2px 0;
   }
-  .spec-owner {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 2px 7px;
-    border-radius: 4px;
-  }
-  .owner-pm { background: rgba(47,110,245,0.1); color: var(--accent); }
-  .owner-supp { background: rgba(212,146,10,0.12); color: var(--yellow); }
-  .owner-lab { background: rgba(15,157,108,0.1); color: var(--green); }
-  .owner-tbd { background: rgba(160,160,154,0.15); color: var(--text3); }
 
   /* LOG ENTRY */
   .log-entry {
     display: flex;
     gap: 14px;
     padding: 14px 0;
-    border-bottom: 1px solid rgba(42,46,69,0.5);
+    border-bottom: 1px solid var(--surface2);
   }
   .log-date {
     font-family: var(--font-mono);
@@ -447,96 +441,41 @@
   .sub-section { display: none; }
   .sub-section.active { display: block; }
 
-  /* SKU TABLE */
-  .sku-table-wrap { overflow-x: auto; }
-  .sku-table { min-width: 900px; }
-
   /* QUICK STATS ROW */
   .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
 
   /* EMPTY STATE */
-  .empty-state {
-    text-align: center;
-    padding: 48px;
-    color: var(--text3);
-  }
+  .empty-state { text-align: center; padding: 48px; color: var(--text3); }
   .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
   .empty-state p { font-size: 14px; }
 
   /* ACTION ROW */
   .action-row { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
 
-  /* REPORT OPTIONS */
-  .report-config {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 18px;
-    margin-bottom: 18px;
-  }
-  .report-config-title { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+  /* REPORT */
   .checkbox-group { display: flex; gap: 18px; flex-wrap: wrap; }
   .checkbox-item { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
   .checkbox-item input { accent-color: var(--accent); width: 14px; height: 14px; }
 
-  /* DETAIL PANEL */
-  .detail-panel {
-    display: none;
-    position: fixed;
-    right: 0; top: 0;
-    width: 480px;
-    height: 100vh;
-    background: var(--surface);
-    border-left: 1px solid var(--border);
-    z-index: 200;
-    overflow-y: auto;
-    padding: 24px;
-    animation: slideIn 0.2s ease;
-  }
-  .detail-panel.open { display: block; }
-  @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-  .panel-close {
-    position: absolute;
-    top: 18px; right: 18px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    width: 30px; height: 30px;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-    color: var(--text2);
-    font-size: 16px;
-  }
-  .section-heading {
-    font-family: var(--font-display);
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text3);
-    margin: 20px 0 10px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border);
+  /* SKU */
+  .sku-table-wrap { overflow-x: auto; }
+  .sku-table { min-width: 900px; }
+
+  /* FORM DIVIDER */
+  .form-divider {
+    font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--text3); padding: 14px 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 12px;
   }
 
-  .spec-pill{display:inline-flex;padding:2px 8px;border-radius:5px;font-size:11px;background:var(--surface2);color:var(--text2);margin-right:5px;margin-bottom:3px;}
-  .form-divider{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);padding:14px 0 8px;border-bottom:1px solid var(--border);margin-bottom:12px;}
-  .btn-green{background:var(--green);color:#fff;}.btn-green:hover{background:#27b87e;}
-  .btn-danger{background:rgba(217,53,53,.1);color:var(--red);border:none;}.btn-danger:hover{background:rgba(217,53,53,.2);}
-  .badge-blue{background:rgba(47,110,245,.1);color:var(--accent);}
+  .spec-pill { display:inline-flex; padding:2px 8px; border-radius:5px; font-size:11px; background:var(--surface2); color:var(--text2); margin-right:5px; margin-bottom:3px; }
+
   /* SCROLLBAR */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #d4d4d0; border-radius: 3px; }
 
-  /* LIGHT OVERRIDES */
-  .modal { box-shadow: 0 8px 40px rgba(0,0,0,0.12); }
   .sidebar { box-shadow: 1px 0 0 var(--border); }
   .topbar { box-shadow: 0 1px 0 var(--border); }
-  tr:hover td { background: rgba(0,0,0,0.02); }
-  .spec-table input, .spec-table select { color: var(--text); }
-  .milestone-line { background: #e3e3e0; }
-  .milestone-dot { border-color: #d4d4d0; }
 </style>
 </head>
 <body>
@@ -551,7 +490,6 @@
     <div class="nav-item active" id="nav-dashboard" onclick="showPage('dashboard')">
       <span class="icon">◈</span> 總覽
     </div>
-    
     <div class="nav-item" id="nav-timeline" onclick="showPage('timeline')">
       <span class="icon">◷</span> 時程追蹤
     </div>
@@ -572,7 +510,12 @@
     </div>
     <div style="font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--text3);text-transform:uppercase;padding:12px 12px 6px;margin-top:6px">專案</div>
     <div id="navProjects"></div>
-    <button style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border-radius:8px;border:1px dashed var(--border);background:transparent;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;margin-top:4px" onclick="openProjectModal(null)" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text3)'">＋ 新增專案</button>
+    <button style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border-radius:8px;border:1px dashed var(--border);background:transparent;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;margin-top:4px"
+      onclick="openProjectModal(null)"
+      onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+      onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text3)'">
+      ＋ 新增專案
+    </button>
   </nav>
 </div>
 
@@ -584,13 +527,19 @@
     <div class="topbar-right" id="topbar-right"></div>
   </div>
 
+  <!-- SYNC STATUS BAR -->
+  <div class="sync-bar" id="syncBar">
+    <div class="sync-dot" id="syncDot"></div>
+    <span id="syncMsg">正在連線 Supabase...</span>
+    <span style="margin-left:auto;color:var(--text3)">資料同步於雲端，支援跨裝置使用</span>
+  </div>
+
   <!-- API KEY BAR -->
   <div class="apikey-bar" id="apikeyBar" style="display:none">
-    <span>🔑 Anthropic API Key（用於 AI 報表）</span>
+    <span>🔑 Anthropic API Key（AI 報表）</span>
     <input type="password" id="apikeyInput" placeholder="sk-ant-..." autocomplete="off">
     <button class="btn btn-ghost btn-sm" onclick="saveApiKey()">儲存</button>
-    <span class="apikey-saved" id="apikeySaved">✓ 已儲存</span>
-    <span style="margin-left:auto;color:var(--text3);font-size:12px">Key 僅存在瀏覽器本機，不會上傳</span>
+    <span style="margin-left:auto;color:#92400e;font-size:12px">Key 僅存本機，不上傳</span>
   </div>
 
   <div class="content">
@@ -619,60 +568,19 @@
           <div class="stat-sub">需立即處理</div>
         </div>
       </div>
-
       <div class="grid-2">
         <div class="card">
-          <div class="card-header">
-            <div class="card-title">專案狀態快覽</div>
-          </div>
-          <div id="dashProjList">
-            <div class="empty-state"><div class="icon">⬡</div><p>尚無專案，前往「專案管理」新增</p></div>
-          </div>
+          <div class="card-header"><div class="card-title">專案狀態快覽</div></div>
+          <div id="dashProjList"><div class="empty-state"><div class="icon">⬡</div><p>尚無專案</p></div></div>
         </div>
         <div class="card">
-          <div class="card-header">
-            <div class="card-title">最新動態</div>
-          </div>
-          <div id="dashLogList">
-            <div class="empty-state"><div class="icon">≡</div><p>尚無動態記錄</p></div>
-          </div>
+          <div class="card-header"><div class="card-title">最新動態</div></div>
+          <div id="dashLogList"><div class="empty-state"><div class="icon">≡</div><p>尚無動態記錄</p></div></div>
         </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">⚑ 高優先 Key Issues</div>
-        </div>
-        <div id="dashIssueList">
-          <div class="empty-state"><div class="icon">✓</div><p>目前沒有高優先 issues</p></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- PROJECTS -->
-    <div class="page-section" id="page-projects">
-      <div class="action-row">
-        <button class="btn btn-primary" onclick="openProjectModal(null)">＋ 新增專案</button>
       </div>
       <div class="card">
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>專案名稱 / SKU</th>
-                <th>類型</th>
-                <th>狀態</th>
-                <th>進度</th>
-                <th>PM Owner</th>
-                <th>目標上市</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody id="projectTableBody">
-              <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text3)">尚無專案資料</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <div class="card-header"><div class="card-title">⚑ 高優先 Key Issues</div></div>
+        <div id="dashIssueList"><div class="empty-state"><div class="icon">✓</div><p>目前沒有高優先 issues</p></div></div>
       </div>
     </div>
 
@@ -704,9 +612,7 @@
         <button class="btn btn-primary" onclick="openIssueModal(null)">＋ 新增 Issue</button>
       </div>
       <div class="card">
-        <div id="issueList">
-          <div class="empty-state"><div class="icon">⚑</div><p>尚無 Key Issues</p></div>
-        </div>
+        <div id="issueList"><div class="empty-state"><div class="icon">⚑</div><p>尚無 Key Issues</p></div></div>
       </div>
     </div>
 
@@ -719,30 +625,27 @@
         <button class="btn btn-primary" onclick="openAddLogModal()">＋ 新增動態</button>
       </div>
       <div class="card">
-        <div id="logList">
-          <div class="empty-state"><div class="icon">≡</div><p>尚無動態記錄</p></div>
-        </div>
+        <div id="logList"><div class="empty-state"><div class="icon">≡</div><p>尚無動態記錄</p></div></div>
       </div>
     </div>
 
     <!-- SPEC MANAGEMENT -->
     <div class="page-section" id="page-spec">
       <div class="tabs">
-        <div class="tab active" onclick="switchSpecTab('product')">Product Spec</div>
-        <div class="tab" onclick="switchSpecTab('rfq')">RFQ Spec</div>
+        <div class="tab active" onclick="switchSpecTab(this,'product')">Product Spec</div>
+        <div class="tab" onclick="switchSpecTab(this,'rfq')">RFQ Spec</div>
       </div>
-
       <div class="sub-section active" id="spec-product">
         <div class="action-row">
           <select class="form-select" style="width:220px" id="specProjectSelect" onchange="loadSpec()">
             <option value="">選擇專案</option>
           </select>
           <button class="btn btn-primary" onclick="saveSpec()">💾 儲存</button>
-          <button class="btn btn-ghost" onclick="exportSpecExcel('product')">↓ 匯出 Excel</button>
+          <button class="btn btn-ghost" onclick="exportSpecExcelPage()">↓ 匯出 Excel</button>
         </div>
         <div class="card">
           <div class="table-wrap">
-            <table class="spec-table" id="productSpecTable">
+            <table class="spec-table">
               <thead>
                 <tr>
                   <th width="180">規格項目</th>
@@ -752,24 +655,21 @@
                   <th>備註</th>
                 </tr>
               </thead>
-              <tbody id="productSpecBody">
-              </tbody>
+              <tbody id="productSpecBody"></tbody>
             </table>
           </div>
         </div>
       </div>
-
       <div class="sub-section" id="spec-rfq">
         <div class="action-row">
           <select class="form-select" style="width:220px" id="rfqProjectSelect" onchange="loadRFQ()">
             <option value="">選擇專案</option>
           </select>
           <button class="btn btn-primary" onclick="saveRFQ()">💾 儲存</button>
-          <button class="btn btn-ghost" onclick="exportSpecExcel('rfq')">↓ 匯出 Excel</button>
         </div>
         <div class="card">
           <div class="table-wrap">
-            <table class="spec-table" id="rfqSpecTable">
+            <table class="spec-table">
               <thead>
                 <tr>
                   <th width="180">RFQ 項目</th>
@@ -797,17 +697,9 @@
           <table class="spec-table sku-table">
             <thead>
               <tr>
-                <th>SKU / Model</th>
-                <th>系列</th>
-                <th>尺寸</th>
-                <th>面板</th>
-                <th>解析度</th>
-                <th>更新率</th>
-                <th>響應時間</th>
-                <th>介面</th>
-                <th>目標市場</th>
-                <th>狀態</th>
-                <th>操作</th>
+                <th>SKU / Model</th><th>系列</th><th>尺寸</th><th>面板</th>
+                <th>解析度</th><th>更新率</th><th>HDR</th><th>介面</th>
+                <th>目標市場</th><th>狀態</th><th>操作</th>
               </tr>
             </thead>
             <tbody id="skuTableBody">
@@ -816,6 +708,11 @@
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- PROJECT DETAIL -->
+    <div class="page-section" id="page-project">
+      <div id="projectDetail"></div>
     </div>
 
     <!-- REPORT GENERATOR -->
@@ -843,12 +740,11 @@
                 <label class="checkbox-item"><input type="checkbox" checked id="rIncludeIssues"> Key Issues</label>
                 <label class="checkbox-item"><input type="checkbox" checked id="rIncludeMilestone"> Milestone 進度</label>
                 <label class="checkbox-item"><input type="checkbox" checked id="rIncludeLog"> 近期動態</label>
-                <label class="checkbox-item"><input type="checkbox" id="rIncludeSpec"> Spec 狀態</label>
               </div>
             </div>
             <div class="form-group">
-              <label class="form-label">額外說明 / 重點提示</label>
-              <textarea class="form-textarea" id="reportExtra" placeholder="例如：本週重點為 EVT 送樣，供應商回覆延遲..."></textarea>
+              <label class="form-label">額外說明</label>
+              <textarea class="form-textarea" id="reportExtra" placeholder="例如：本週重點為 EVT 送樣..."></textarea>
             </div>
             <button class="btn btn-primary" style="width:100%" onclick="generateReport()">✦ AI 產生報表</button>
           </div>
@@ -864,17 +760,18 @@
             </div>
             <div class="ai-output" id="reportOutput" style="display:none"></div>
             <div id="reportPlaceholder" style="color:var(--text3);font-size:13.5px;line-height:1.7">
-              設定好報表選項後，點擊「AI 產生報表」，系統將自動彙整所有專案的最新狀態、Key Issues 和時程進度，幫你起草週報或月報。
+              設定好報表選項後，點擊「AI 產生報表」即可自動彙整週報/月報。
             </div>
           </div>
         </div>
       </div>
     </div>
 
-  </div>
-</div>
+  </div><!-- /content -->
+</div><!-- /main -->
 
-<!-- MODALS -->
+<!-- ===== MODALS ===== -->
+
 <!-- Project Modal -->
 <div class="modal-overlay" id="projectModal">
   <div class="modal">
@@ -926,7 +823,7 @@
       <label class="form-label">開發進度 (%)</label>
       <input class="form-input" type="number" id="pProgress" min="0" max="100" placeholder="0">
     </div>
-    <div class="form-divider" style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);padding:14px 0 8px;border-bottom:1px solid var(--border);margin-bottom:12px">產品規格（初步）</div>
+    <div class="form-divider">產品規格（初步）</div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">尺寸（吋）</label><input class="form-input" id="fSize" placeholder="27"></div>
       <div class="form-group"><label class="form-label">解析度</label><input class="form-input" id="fRes" placeholder="QHD 2560x1440"></div>
@@ -943,7 +840,7 @@
       <div class="form-group"><label class="form-label">色域</label><input class="form-input" id="fGamut" placeholder="DCI-P3 95%"></div>
       <div class="form-group"><label class="form-label">面板料號</label><input class="form-input" id="fPanelPN" placeholder="SI回填"></div>
     </div>
-    <div class="form-divider" style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);padding:14px 0 8px;border-bottom:1px solid var(--border);margin-bottom:12px">里程碑日期</div>
+    <div class="form-divider">里程碑日期</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
       <div class="form-group"><label class="form-label" style="color:#64748b">preKO</label><input class="form-input" type="date" id="ms_preKO"></div>
       <div class="form-group"><label class="form-label" style="color:#3b82f6">KO</label><input class="form-input" type="date" id="ms_KO"></div>
@@ -958,7 +855,10 @@
       <div class="form-group"><label class="form-label" style="color:#ef4444">MP</label><input class="form-input" type="date" id="ms_MP"></div>
       <div></div>
     </div>
-    <div class="form-group"><label class="form-label">筆記</label><textarea class="form-textarea" id="pNotes" placeholder="供應商窗口、聯絡方式、注意事項..."></textarea></div>
+    <div class="form-group">
+      <label class="form-label">筆記</label>
+      <textarea class="form-textarea" id="pNotes" placeholder="供應商窗口、聯絡方式、注意事項..."></textarea>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-danger" id="projectDeleteBtn" style="margin-right:auto;display:none" onclick="deleteCurrentProject()">🗑 刪除專案</button>
       <button class="btn btn-ghost" onclick="closeModal('projectModal')">取消</button>
@@ -970,7 +870,7 @@
 <!-- Milestone Modal -->
 <div class="modal-overlay" id="milestoneModal">
   <div class="modal">
-    <div class="modal-title">新增 Milestone</div>
+    <div class="modal-title">新增 / 更新 Milestone</div>
     <div class="form-group">
       <label class="form-label">專案</label>
       <select class="form-select" id="mProject"></select>
@@ -978,7 +878,15 @@
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">里程碑名稱</label>
-        <input class="form-input" id="mName" placeholder="e.g. EVT 送樣">
+        <select class="form-select" id="mName">
+          <option value="preKO">preKO</option>
+          <option value="KO">KO</option>
+          <option value="EVT">EVT</option>
+          <option value="DVT">DVT</option>
+          <option value="PVT">PVT</option>
+          <option value="preMP">preMP</option>
+          <option value="MP">MP</option>
+        </select>
       </div>
       <div class="form-group">
         <label class="form-label">目標日期</label>
@@ -1047,7 +955,11 @@
     </div>
     <div class="form-group">
       <label class="form-label">影響里程碑</label>
-      <select class="form-select" id="iMilestone"><option value="">—</option><option>preKO</option><option>KO</option><option>EVT</option><option>DVT</option><option>PVT</option><option>preMP</option><option>MP</option></select>
+      <select class="form-select" id="iMilestone">
+        <option value="">—</option>
+        <option>preKO</option><option>KO</option><option>EVT</option>
+        <option>DVT</option><option>PVT</option><option>preMP</option><option>MP</option>
+      </select>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('issueModal')">取消</button>
@@ -1066,7 +978,7 @@
     </div>
     <div class="form-group">
       <label class="form-label">動態內容</label>
-      <textarea class="form-textarea" id="lContent" style="min-height:120px" placeholder="記錄本次更新、會議結論、決策事項..."></textarea>
+      <textarea class="form-textarea" id="lContent" style="min-height:120px" placeholder="記錄本次更新、會議結論..."></textarea>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -1095,20 +1007,11 @@
   <div class="modal modal-lg">
     <div class="modal-title">新增 SKU</div>
     <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Model / SKU</label>
-        <input class="form-input" id="skuModel" placeholder="e.g. GM270Q-BK">
-      </div>
-      <div class="form-group">
-        <label class="form-label">系列名稱</label>
-        <input class="form-input" id="skuSeries" placeholder="e.g. Raptor Pro">
-      </div>
+      <div class="form-group"><label class="form-label">Model / SKU</label><input class="form-input" id="skuModel" placeholder="e.g. GM270Q-BK"></div>
+      <div class="form-group"><label class="form-label">系列名稱</label><input class="form-input" id="skuSeries" placeholder="e.g. Raptor Pro"></div>
     </div>
     <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">螢幕尺寸</label>
-        <input class="form-input" id="skuSize" placeholder='e.g. 27"'>
-      </div>
+      <div class="form-group"><label class="form-label">螢幕尺寸</label><input class="form-input" id="skuSize" placeholder='27"'></div>
       <div class="form-group">
         <label class="form-label">面板類型</label>
         <select class="form-select" id="skuPanel">
@@ -1117,37 +1020,20 @@
       </div>
     </div>
     <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">解析度</label>
-        <input class="form-input" id="skuRes" placeholder="e.g. 2560x1440">
-      </div>
-      <div class="form-group">
-        <label class="form-label">更新率</label>
-        <input class="form-input" id="skuHz" placeholder="e.g. 165Hz">
-      </div>
+      <div class="form-group"><label class="form-label">解析度</label><input class="form-input" id="skuRes" placeholder="2560x1440"></div>
+      <div class="form-group"><label class="form-label">更新率</label><input class="form-input" id="skuHz" placeholder="165Hz"></div>
     </div>
     <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">HDR</label>
-        <input class="form-input" id="skuHdr" placeholder="e.g. HDR400">
-      </div>
-      <div class="form-group">
-        <label class="form-label">介面 (Connectivity)</label>
-        <input class="form-input" id="skuConn" placeholder="e.g. HDMI 2.1 x2, DP 1.4">
-      </div>
+      <div class="form-group"><label class="form-label">HDR</label><input class="form-input" id="skuHdr" placeholder="HDR400"></div>
+      <div class="form-group"><label class="form-label">介面</label><input class="form-input" id="skuConn" placeholder="HDMI 2.1 x2, DP 1.4"></div>
     </div>
     <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">目標市場</label>
-        <input class="form-input" id="skuMkt" placeholder="e.g. NA, EU">
-      </div>
+      <div class="form-group"><label class="form-label">目標市場</label><input class="form-input" id="skuMkt" placeholder="NA, EU"></div>
       <div class="form-group">
         <label class="form-label">狀態</label>
         <select class="form-select" id="skuStatus">
-          <option value="planning">規劃中</option>
-          <option value="active">開發中</option>
-          <option value="mp">量產</option>
-          <option value="eol">EOL</option>
+          <option value="planning">規劃中</option><option value="active">開發中</option>
+          <option value="mp">量產</option><option value="eol">EOL</option>
         </select>
       </div>
     </div>
@@ -1158,689 +1044,926 @@
   </div>
 </div>
 
-
 <script>
-// ===== DATA =====
+// ============================================================
+// SUPABASE CONFIG
+// ============================================================
+var SUPABASE_URL = 'https://yqnbdlzuvcwzcnscszgj.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxbmJkbHp1dmN3emNuc2NzemcgaiIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzAwMDAwMDAwLCJleHAiOjIwMTU2MDAwMDB9.placeholder';
+// NOTE: Replace SUPABASE_ANON_KEY with your actual anon/public key from Supabase Dashboard > Settings > API
+
+var supabase = null;
+try {
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} catch(e) {
+  console.warn('Supabase init failed, falling back to localStorage:', e);
+}
+
+// ============================================================
+// SYNC STATUS HELPERS
+// ============================================================
+function setSyncStatus(status, msg) {
+  var dot = document.getElementById('syncDot');
+  var msgEl = document.getElementById('syncMsg');
+  if (!dot || !msgEl) return;
+  dot.className = 'sync-dot ' + status;
+  msgEl.textContent = msg;
+}
+
+// ============================================================
+// CONSTANTS
+// ============================================================
 var MS_ORDER = ['preKO','KO','EVT','DVT','PVT','preMP','MP'];
 var MS_COLORS = {preKO:'#64748b',KO:'#3b82f6',EVT:'#8b5cf6',DVT:'#f59e0b',PVT:'#10b981',preMP:'#f97316',MP:'#ef4444'};
+var PRIO_ICON = {high:'🔴',medium:'🟡',low:'🟢'};
+var TYPE_LABEL = {update:'更新',meeting:'會議',decision:'決策',risk:'風險'};
 
-var state = {projects:[], issues:[], logs:[], skus:[]};
+// ============================================================
+// LOCAL STATE (fallback + cache)
+// ============================================================
+var state = { projects: [], issues: [], logs: [], skus: [] };
 
-function loadState() {
-  try { var s=localStorage.getItem('pmDB_v3'); if(s) state=JSON.parse(s); } catch(e){}
+function loadLocalState() {
+  try {
+    var s = localStorage.getItem('pmDB_v4');
+    if (s) state = JSON.parse(s);
+  } catch(e) {}
 }
-function saveState() {
-  try { localStorage.setItem('pmDB_v3', JSON.stringify(state)); } catch(e){}
+function saveLocalState() {
+  try { localStorage.setItem('pmDB_v4', JSON.stringify(state)); } catch(e) {}
 }
-loadState();
+loadLocalState();
 
-function getById(arr,id){ for(var i=0;i<arr.length;i++){if(arr[i].id===id)return arr[i];} return null; }
-function removeById(arr,id){ var o=[];for(var i=0;i<arr.length;i++){if(arr[i].id!==id)o.push(arr[i]);}return o; }
-function mkId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
-function todayStr(){ return new Date().toISOString().slice(0,10); }
-function el(id){ return document.getElementById(id); }
-function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function val(id){ return el(id)?el(id).value:''; }
+// ============================================================
+// SUPABASE DATA LAYER
+// DB tables needed (see README at bottom of this file):
+//   pm_projects, pm_issues, pm_logs, pm_skus
+// ============================================================
 
-// ===== NAVIGATION =====
-var currentPage='dashboard', currentProjId=null;
-var PAGE_TITLES={dashboard:'總覽',timeline:'時程甘特圖',issues:'Key Issues',log:'動態日誌',sku:'SKU Table',report:'報表產生器',project:'專案詳情'};
-var PRIO_ICON={high:'🔴',medium:'🟡',low:'🟢'};
-var TYPE_LABEL={update:'更新',meeting:'會議',decision:'決策',risk:'風險'};
+async function dbLoad() {
+  if (!supabase) {
+    setSyncStatus('error', '未連線 Supabase，使用本機資料');
+    return;
+  }
+  setSyncStatus('syncing', '同步資料中...');
+  try {
+    var [p, i, l, s] = await Promise.all([
+      supabase.from('pm_projects').select('*').order('created_at', {ascending: true}),
+      supabase.from('pm_issues').select('*').order('created_at', {ascending: true}),
+      supabase.from('pm_logs').select('*').order('date', {ascending: false}),
+      supabase.from('pm_skus').select('*').order('created_at', {ascending: true})
+    ]);
+    if (p.error || i.error || l.error || s.error) throw (p.error || i.error || l.error || s.error);
+    state.projects = (p.data || []).map(dbRowToProject);
+    state.issues = (i.data || []).map(dbRowToIssue);
+    state.logs = (l.data || []);
+    state.skus = (s.data || []);
+    saveLocalState();
+    setSyncStatus('connected', '已同步（Supabase）');
+    refreshAll();
+  } catch(e) {
+    console.error('DB load error:', e);
+    setSyncStatus('error', '連線失敗，使用本機快取 (' + (e.message||e) + ')');
+    refreshAll();
+  }
+}
 
-function showPage(page, projId){
-  currentPage=page; currentProjId=projId||null;
-  var ss=document.querySelectorAll('.page-section');
-  for(var i=0;i<ss.length;i++) ss[i].classList.remove('active');
-  el('page-'+page).classList.add('active');
-  var nn=document.querySelectorAll('.nav-item');
-  for(var i=0;i<nn.length;i++) nn[i].classList.remove('active');
-  if(el('nav-'+page)) el('nav-'+page).classList.add('active');
-  var t=projId&&getById(state.projects,projId)?getById(state.projects,projId).name:(PAGE_TITLES[page]||page);
-  el('pageTitle').textContent=t;
-  el('topbar-right').innerHTML='';
-  if(page==='project'&&projId){
-    el('topbar-right').innerHTML='<button class="btn btn-ghost btn-sm" onclick="openProjectModal(\''+projId+'\')">⚙ 編輯專案</button>';
+// DB row → app object (projects store milestones as JSONB)
+function dbRowToProject(row) {
+  return {
+    id: row.id,
+    name: row.name || '',
+    vendor: row.vendor || '',
+    type: row.type || 'Consumer Monitor',
+    status: row.status || 'planning',
+    owner: row.owner || '',
+    color: row.color || '#2563eb',
+    notes: row.notes || '',
+    spec: row.spec || {},
+    milestones: row.milestones || defaultMilestones()
+  };
+}
+function dbRowToIssue(row) {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    desc: row.desc || '',
+    priority: row.priority || 'medium',
+    status: row.status || 'open',
+    owner: row.owner || '',
+    due: row.due || '',
+    milestone: row.milestone || ''
+  };
+}
+
+function defaultMilestones() {
+  var m = {};
+  MS_ORDER.forEach(function(k) { m[k] = {date:'', done:false}; });
+  return m;
+}
+
+async function dbSaveProject(p) {
+  if (!supabase) { saveLocalState(); setSyncStatus('error','本機儲存'); return; }
+  setSyncStatus('syncing','儲存中...');
+  var row = {
+    id: p.id, name: p.name, vendor: p.vendor, type: p.type,
+    status: p.status, owner: p.owner, color: p.color, notes: p.notes,
+    spec: p.spec, milestones: p.milestones
+  };
+  var { error } = await supabase.from('pm_projects').upsert(row);
+  if (error) { console.error(error); setSyncStatus('error','儲存失敗: '+error.message); }
+  else { saveLocalState(); setSyncStatus('connected','已儲存'); }
+}
+
+async function dbDeleteProject(id) {
+  if (!supabase) { saveLocalState(); return; }
+  await supabase.from('pm_projects').delete().eq('id', id);
+  await supabase.from('pm_issues').delete().eq('project_id', id);
+  await supabase.from('pm_logs').delete().eq('project_id', id);
+  saveLocalState();
+  setSyncStatus('connected','已刪除');
+}
+
+async function dbSaveIssue(iss) {
+  if (!supabase) { saveLocalState(); return; }
+  setSyncStatus('syncing','儲存中...');
+  var row = {
+    id: iss.id, project_id: iss.projectId, desc: iss.desc,
+    priority: iss.priority, status: iss.status, owner: iss.owner,
+    due: iss.due || null, milestone: iss.milestone || null
+  };
+  var { error } = await supabase.from('pm_issues').upsert(row);
+  if (error) { console.error(error); setSyncStatus('error','儲存失敗'); }
+  else { saveLocalState(); setSyncStatus('connected','已儲存'); }
+}
+
+async function dbDeleteIssue(id) {
+  if (!supabase) { saveLocalState(); return; }
+  await supabase.from('pm_issues').delete().eq('id', id);
+  saveLocalState();
+}
+
+async function dbSaveLog(log) {
+  if (!supabase) { saveLocalState(); return; }
+  setSyncStatus('syncing','儲存中...');
+  var row = {
+    id: log.id, project_id: log.projectId, content: log.content,
+    date: log.date, type: log.type
+  };
+  var { error } = await supabase.from('pm_logs').upsert(row);
+  if (error) { console.error(error); setSyncStatus('error','儲存失敗'); }
+  else { saveLocalState(); setSyncStatus('connected','已儲存'); }
+}
+
+async function dbSaveSKU(sku) {
+  if (!supabase) { saveLocalState(); return; }
+  var { error } = await supabase.from('pm_skus').upsert(sku);
+  if (error) console.error(error);
+  else saveLocalState();
+}
+
+async function dbDeleteSKU(id) {
+  if (!supabase) { saveLocalState(); return; }
+  await supabase.from('pm_skus').delete().eq('id', id);
+  saveLocalState();
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function getById(arr, id) { for (var i=0; i<arr.length; i++) if (arr[i].id===id) return arr[i]; return null; }
+function removeById(arr, id) { return arr.filter(function(x){return x.id!==id;}); }
+function mkId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function todayStr() { return new Date().toISOString().slice(0,10); }
+function el(id) { return document.getElementById(id); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function val(id) { return el(id) ? el(id).value : ''; }
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+var currentPage = 'dashboard', currentProjId = null;
+var PAGE_TITLES = {
+  dashboard:'總覽', timeline:'時程甘特圖', issues:'Key Issues',
+  log:'動態日誌', sku:'SKU Table', report:'報表產生器',
+  spec:'Spec 管理', project:'專案詳情'
+};
+
+function showPage(page, projId) {
+  currentPage = page;
+  currentProjId = projId || null;
+  document.querySelectorAll('.page-section').forEach(function(s){ s.classList.remove('active'); });
+  var target = el('page-' + page);
+  if (target) target.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+  if (el('nav-' + page)) el('nav-' + page).classList.add('active');
+  var t = (projId && getById(state.projects, projId)) ? getById(state.projects, projId).name : (PAGE_TITLES[page] || page);
+  el('pageTitle').textContent = t;
+  el('topbar-right').innerHTML = '';
+  if (page === 'project' && projId) {
+    el('topbar-right').innerHTML = '<button class="btn btn-ghost btn-sm" onclick="openProjectModal(\''+projId+'\')">⚙ 編輯專案</button>';
     renderProjDetail(projId);
   }
-  updateStats(); renderNav();
-  if(page==='dashboard') renderDashboard();
-  if(page==='timeline') renderTimeline();
-  if(page==='issues'){fillSelects();renderIssues();}
-  if(page==='log'){fillSelects();renderLog();}
-  if(page==='sku') renderSKU();
-  if(page==='report') renderReportCbs();
-}
-
-function renderNav(){
-  var html='';
-  for(var i=0;i<state.projects.length;i++){
-    var p=state.projects[i], c=p.color||'#2563eb';
-    var act=(currentPage==='project'&&currentProjId===p.id)?' active':'';
-    html+='<div class="nav-item'+act+'" onclick="showPage(\'project\',\''+p.id+'\')" style="font-size:12.5px">';
-    html+='<span style="width:7px;height:7px;border-radius:50%;background:'+c+';flex-shrink:0;display:inline-block"></span>';
-    html+='<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.name)+'</span></div>';
-  }
-  el('navProjects').innerHTML=html;
-}
-
-// ===== STATS =====
-function updateStats(){
-  el('statA').textContent=state.projects.length;
-  var openI=0,highI=0;
-  for(var i=0;i<state.issues.length;i++){
-    if(state.issues[i].status!=='resolved')openI++;
-    if(state.issues[i].priority==='high'&&state.issues[i].status!=='resolved')highI++;
-  }
-  el('statI').textContent=openI; el('statC').textContent=highI;
-  var now=new Date(), we=new Date(now.getTime()+7*86400000), sms=0;
-  for(var j=0;j<state.projects.length;j++){
-    var p=state.projects[j];
-    for(var k=0;k<MS_ORDER.length;k++){
-      var m=p.milestones[MS_ORDER[k]];
-      if(!m.done&&m.date){var d=new Date(m.date);if(d>=now&&d<=we)sms++;}
-    }
-  }
-  el('statM').textContent=sms;
-}
-
-// ===== DASHBOARD =====
-function renderDashboard(){
-  if(!state.projects.length){
-    el('dashProjList').innerHTML='<div class="empty-state"><div class="icon">⬡</div><p>尚無專案，點左側「新增專案」</p></div>';
+  if (page === 'report') {
+    el('apikeyBar').style.display = 'flex';
+    renderReportCheckboxes();
   } else {
-    var html='';
-    for(var i=0;i<state.projects.length;i++){
-      var p=state.projects[i],done=0;
-      for(var k=0;k<MS_ORDER.length;k++){if(p.milestones[MS_ORDER[k]].done)done++;}
-      var pct=Math.round(done/MS_ORDER.length*100);
-      var next='';for(var k=0;k<MS_ORDER.length;k++){if(!p.milestones[MS_ORDER[k]].done){next=MS_ORDER[k];break;}}
-      var oi=0;for(var j=0;j<state.issues.length;j++){if(state.issues[j].projectId===p.id&&state.issues[j].status!=='resolved')oi++;}
-      var c=p.color||'#2563eb';
-      html+='<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--surface2);cursor:pointer" onclick="showPage(\'project\',\''+p.id+'\')">';
-      html+='<span style="width:9px;height:9px;border-radius:50%;background:'+c+';flex-shrink:0;display:inline-block"></span>';
-      html+='<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13.5px">'+esc(p.name)+'</div>';
-      html+='<div style="font-size:11px;color:var(--text3)">'+esc(p.vendor||'')+(next?' · 下一站 '+next:'')+(oi?' · ⚠ '+oi+' issues':'')+'</div></div>';
-      html+='<div style="width:72px"><div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%;background:'+c+'"></div></div>';
-      html+='<div style="font-size:10px;color:var(--text3);margin-top:2px">'+pct+'%</div></div></div>';
-    }
-    el('dashProjList').innerHTML=html;
+    el('apikeyBar').style.display = 'none';
   }
-  var sorted=state.logs.slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
-  var recent=sorted.slice(0,4);
-  if(!recent.length){
-    el('dashLogList').innerHTML='<div class="empty-state"><div class="icon">≡</div><p>尚無動態記錄</p></div>';
+  updateStats();
+  renderNav();
+  if (page === 'dashboard') renderDashboard();
+  if (page === 'timeline') { fillFilterSel('timelineProjectFilter'); renderTimeline(); }
+  if (page === 'issues') { fillSelects(); renderIssues(); }
+  if (page === 'log') { fillSelects(); renderLog(); }
+  if (page === 'sku') renderSKU();
+  if (page === 'spec') { fillProjSel('specProjectSelect'); fillProjSel('rfqProjectSelect'); }
+}
+
+function refreshAll() {
+  updateStats();
+  renderNav();
+  renderDashboard();
+  if (currentPage === 'timeline') renderTimeline();
+  if (currentPage === 'issues') renderIssues();
+  if (currentPage === 'log') renderLog();
+  if (currentPage === 'sku') renderSKU();
+  if (currentPage === 'project' && currentProjId) renderProjDetail(currentProjId);
+}
+
+function renderNav() {
+  var html = '';
+  state.projects.forEach(function(p) {
+    var c = p.color || '#2563eb';
+    var act = (currentPage === 'project' && currentProjId === p.id) ? ' active' : '';
+    html += '<div class="nav-item'+act+'" onclick="showPage(\'project\',\''+p.id+'\')"><span style="width:7px;height:7px;border-radius:50%;background:'+c+';flex-shrink:0;display:inline-block"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.name)+'</span></div>';
+  });
+  el('navProjects').innerHTML = html;
+}
+
+// ============================================================
+// STATS
+// ============================================================
+function updateStats() {
+  el('statA').textContent = state.projects.length;
+  var openI = 0, highI = 0;
+  state.issues.forEach(function(iss) {
+    if (iss.status !== 'resolved') openI++;
+    if (iss.priority === 'high' && iss.status !== 'resolved') highI++;
+  });
+  el('statI').textContent = openI;
+  el('statC').textContent = highI;
+  var now = new Date(), we = new Date(now.getTime() + 7*86400000), sms = 0;
+  state.projects.forEach(function(p) {
+    MS_ORDER.forEach(function(k) {
+      var m = p.milestones[k];
+      if (m && !m.done && m.date) { var d = new Date(m.date); if (d>=now && d<=we) sms++; }
+    });
+  });
+  el('statM').textContent = sms;
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function renderDashboard() {
+  if (!state.projects.length) {
+    el('dashProjList').innerHTML = '<div class="empty-state"><div class="icon">⬡</div><p>尚無專案，點左側「新增專案」</p></div>';
   } else {
-    var html='';
-    for(var i=0;i<recent.length;i++){
-      var l=recent[i],proj=getById(state.projects,l.projectId);
-      html+='<div class="log-entry"><div class="log-date">'+esc(l.date)+'</div>';
-      html+='<div><div class="log-proj">'+esc(proj?proj.name:'—')+'</div><div class="log-content">'+esc(l.content)+'</div></div></div>';
-    }
-    el('dashLogList').innerHTML=html;
+    var html = '';
+    state.projects.forEach(function(p) {
+      var done = 0;
+      MS_ORDER.forEach(function(k){ if (p.milestones[k] && p.milestones[k].done) done++; });
+      var pct = Math.round(done / MS_ORDER.length * 100);
+      var next = '';
+      for (var k=0; k<MS_ORDER.length; k++) { if (!p.milestones[MS_ORDER[k]].done) { next=MS_ORDER[k]; break; } }
+      var oi = state.issues.filter(function(iss){ return iss.projectId===p.id && iss.status!=='resolved'; }).length;
+      var c = p.color || '#2563eb';
+      html += '<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--surface2);cursor:pointer" onclick="showPage(\'project\',\''+p.id+'\')"><span style="width:9px;height:9px;border-radius:50%;background:'+c+';flex-shrink:0;display:inline-block"></span><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13.5px">'+esc(p.name)+'</div><div style="font-size:11px;color:var(--text3)">'+esc(p.vendor||'')+(next?' · 下一站 '+next:'')+(oi?' · ⚠ '+oi+' issues':'')+'</div></div><div style="width:72px"><div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%;background:'+c+'"></div></div><div style="font-size:10px;color:var(--text3);margin-top:2px">'+pct+'%</div></div></div>';
+    });
+    el('dashProjList').innerHTML = html;
   }
-  var hi=[];for(var i=0;i<state.issues.length;i++){if(state.issues[i].priority==='high'&&state.issues[i].status!=='resolved')hi.push(state.issues[i]);}
-  if(!hi.length){
-    el('dashIssueList').innerHTML='<div class="empty-state"><div class="icon">✓</div><p>目前沒有高優先 issues</p></div>';
+  var recent = state.logs.slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);}).slice(0,4);
+  if (!recent.length) {
+    el('dashLogList').innerHTML = '<div class="empty-state"><div class="icon">≡</div><p>尚無動態記錄</p></div>';
   } else {
-    var html='';
-    for(var i=0;i<Math.min(hi.length,4);i++){
-      var iss=hi[i],proj=getById(state.projects,iss.projectId);
-      html+='<div class="issue-item"><div style="font-size:16px">🔴</div>';
-      html+='<div class="issue-text"><div>'+esc(iss.desc)+'</div>';
-      html+='<div class="issue-meta">'+esc(proj?proj.name:'—')+' · '+esc(iss.owner||'—')+' · '+esc(iss.due||'—')+(iss.milestone?' → '+iss.milestone:'')+'</div></div></div>';
-    }
-    el('dashIssueList').innerHTML=html;
+    var html2 = '';
+    recent.forEach(function(l) {
+      var proj = getById(state.projects, l.projectId || l.project_id);
+      html2 += '<div class="log-entry"><div class="log-date">'+esc(l.date)+'</div><div><div class="log-proj">'+esc(proj?proj.name:'—')+'</div><div class="log-content">'+esc(l.content)+'</div></div></div>';
+    });
+    el('dashLogList').innerHTML = html2;
+  }
+  var hi = state.issues.filter(function(iss){ return iss.priority==='high' && iss.status!=='resolved'; });
+  if (!hi.length) {
+    el('dashIssueList').innerHTML = '<div class="empty-state"><div class="icon">✓</div><p>目前沒有高優先 issues</p></div>';
+  } else {
+    var html3 = '';
+    hi.slice(0,4).forEach(function(iss) {
+      var proj = getById(state.projects, iss.projectId);
+      html3 += '<div class="issue-item"><div style="font-size:16px">🔴</div><div class="issue-text"><div>'+esc(iss.desc)+'</div><div class="issue-meta">'+esc(proj?proj.name:'—')+' · '+esc(iss.owner||'—')+' · '+esc(iss.due||'—')+(iss.milestone?' → '+iss.milestone:'')+'</div></div></div>';
+    });
+    el('dashIssueList').innerHTML = html3;
   }
 }
 
-// ===== PROJECT DETAIL =====
-function renderProjDetail(projId){
-  var p=getById(state.projects,projId);
-  if(!p){el('projectDetail').innerHTML='<div class="empty-state"><p>專案不存在</p></div>';return;}
-  var specKeys=[['尺寸','size'],['解析度','resolution'],['刷新率','refreshRate'],['面板類型','panelType'],['HDR','hdr'],['連接埠','connectivity'],['色域','colorGamut'],['面板料號','panelPN']];
-  var specPills='';
-  for(var i=0;i<specKeys.length;i++){
-    var k=specKeys[i][1],v=p.spec&&p.spec[k]?p.spec[k]:'';
-    if(v) specPills+='<span class="spec-pill">'+esc(specKeys[i][0])+'：'+esc(v)+'</span>';
-  }
-  var issCount=0;for(var i=0;i<state.issues.length;i++){if(state.issues[i].projectId===projId&&state.issues[i].status!=='resolved')issCount++;}
-  var logCount=0;for(var i=0;i<state.logs.length;i++){if(state.logs[i].projectId===projId)logCount++;}
+// ============================================================
+// PROJECT MODAL
+// ============================================================
+var editProjId = null;
 
-  var html='';
-  if(specPills) html+='<div class="card" style="padding:12px 16px;margin-bottom:14px"><span style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.08em;margin-right:10px">SPEC</span>'+specPills+'</div>';
-  html+='<div class="tabs">';
-  html+='<div class="tab active" onclick="switchDTab(this,\'ms\')">⬡ 里程碑</div>';
-  html+='<div class="tab" onclick="switchDTab(this,\'issues\')">⚑ Issues ('+issCount+')</div>';
-  html+='<div class="tab" onclick="switchDTab(this,\'log\')">≡ 動態 ('+logCount+')</div>';
-  html+='<div class="tab" onclick="switchDTab(this,\'spec\')">📐 規格</div>';
-  html+='<div class="tab" onclick="switchDTab(this,\'notes\')">✏ 筆記</div>';
-  html+='<div class="tab" onclick="switchDTab(this,\'export\')">↓ 匯出</div></div>';
-  html+='<div id="dtp-ms" class="sub-section active">'+buildMSPane(p)+'</div>';
-  html+='<div id="dtp-issues" class="sub-section">'+buildIssuesPane(projId)+'</div>';
-  html+='<div id="dtp-log" class="sub-section">'+buildLogPane(projId)+'</div>';
-  html+='<div id="dtp-spec" class="sub-section">'+buildSpecPane(p)+'</div>';
-  html+='<div id="dtp-notes" class="sub-section">'+buildNotesPane(p)+'</div>';
-  html+='<div id="dtp-export" class="sub-section">'+buildExportPane(projId)+'</div>';
-  el('projectDetail').innerHTML=html;
+function openProjectModal(projId) {
+  editProjId = projId || null;
+  var p = projId ? getById(state.projects, projId) : null;
+  el('projectModalTitle').textContent = p ? '編輯專案' : '新增專案';
+  el('projectDeleteBtn').style.display = p ? 'inline-flex' : 'none';
+  el('pName').value = p ? p.name : '';
+  el('pVendor').value = p ? (p.vendor||'') : '';
+  el('pType').value = p ? (p.type||'Consumer Monitor') : 'Consumer Monitor';
+  el('pStatus').value = p ? (p.status||'planning') : 'planning';
+  el('pOwner').value = p ? (p.owner||'') : '';
+  el('pNotes').value = p ? (p.notes||'') : '';
+  el('pLaunch').value = p ? (p.launch||'') : '';
+  el('pProgress').value = p ? (p.progress||0) : 0;
+  var spec = p && p.spec ? p.spec : {};
+  el('fSize').value = spec.size||'';
+  el('fRes').value = spec.resolution||'';
+  el('fHz').value = spec.refreshRate||'';
+  el('fPanel').value = spec.panelType||'';
+  el('fHdr').value = spec.hdr||'';
+  el('fConn').value = spec.connectivity||'';
+  el('fGamut').value = spec.colorGamut||'';
+  el('fPanelPN').value = spec.panelPN||'';
+  MS_ORDER.forEach(function(ms) {
+    var mv = (p && p.milestones && p.milestones[ms]) ? (p.milestones[ms].date||'') : '';
+    el('ms_'+ms).value = mv;
+  });
+  openModal('projectModal');
 }
 
-function switchDTab(tabEl,pane){
-  var tabs=document.querySelectorAll('.tabs .tab');for(var i=0;i<tabs.length;i++)tabs[i].classList.remove('active');tabEl.classList.add('active');
-  var panes=document.querySelectorAll('[id^="dtp-"]');for(var i=0;i<panes.length;i++)panes[i].classList.remove('active');
+function saveProject() {
+  var name = el('pName').value.trim();
+  if (!name) { alert('請輸入專案名稱'); return; }
+  var spec = {
+    size: el('fSize').value, resolution: el('fRes').value,
+    refreshRate: el('fHz').value, panelType: el('fPanel').value,
+    hdr: el('fHdr').value, connectivity: el('fConn').value,
+    colorGamut: el('fGamut').value, panelPN: el('fPanelPN').value
+  };
+  var milestones = {};
+  MS_ORDER.forEach(function(ms) {
+    var existDone = (editProjId && getById(state.projects, editProjId) && getById(state.projects, editProjId).milestones[ms]) ? getById(state.projects, editProjId).milestones[ms].done : false;
+    milestones[ms] = { date: el('ms_'+ms).value, done: existDone };
+  });
+  var p;
+  if (editProjId) {
+    p = getById(state.projects, editProjId);
+    p.name = name; p.vendor = el('pVendor').value; p.type = el('pType').value;
+    p.status = el('pStatus').value; p.owner = el('pOwner').value;
+    p.notes = el('pNotes').value; p.launch = el('pLaunch').value;
+    p.progress = el('pProgress').value;
+    if (!p.color) p.color = '#2563eb';
+    p.spec = spec; p.milestones = milestones;
+  } else {
+    p = {
+      id: mkId(), name: name, vendor: el('pVendor').value,
+      type: el('pType').value, status: el('pStatus').value,
+      owner: el('pOwner').value, color: '#2563eb',
+      notes: el('pNotes').value, launch: el('pLaunch').value,
+      progress: el('pProgress').value, spec: spec, milestones: milestones
+    };
+    state.projects.push(p);
+  }
+  dbSaveProject(p);
+  closeModal('projectModal');
+  renderNav(); updateStats();
+  if (editProjId) { showPage('project', editProjId); }
+  else { renderDashboard(); }
+}
+
+function deleteCurrentProject() {
+  if (!editProjId || !confirm('確定要刪除此專案？所有相關資料也會一併刪除。')) return;
+  var id = editProjId;
+  state.projects = removeById(state.projects, id);
+  state.issues = state.issues.filter(function(x){ return x.projectId !== id; });
+  state.logs = state.logs.filter(function(x){ return (x.projectId||x.project_id) !== id; });
+  dbDeleteProject(id);
+  closeModal('projectModal');
+  editProjId = null;
+  renderNav(); updateStats();
+  showPage('dashboard'); renderDashboard();
+}
+
+// ============================================================
+// PROJECT DETAIL
+// ============================================================
+function renderProjDetail(projId) {
+  var p = getById(state.projects, projId);
+  if (!p) { el('projectDetail').innerHTML = '<div class="empty-state"><p>專案不存在</p></div>'; return; }
+  var specKeys = [['尺寸','size'],['解析度','resolution'],['刷新率','refreshRate'],['面板類型','panelType'],['HDR','hdr'],['連接埠','connectivity'],['色域','colorGamut'],['面板料號','panelPN']];
+  var specPills = '';
+  specKeys.forEach(function(k) {
+    var v = p.spec && p.spec[k[1]] ? p.spec[k[1]] : '';
+    if (v) specPills += '<span class="spec-pill">'+esc(k[0])+'：'+esc(v)+'</span>';
+  });
+  var issCount = state.issues.filter(function(iss){ return iss.projectId===projId && iss.status!=='resolved'; }).length;
+  var logCount = state.logs.filter(function(l){ return (l.projectId||l.project_id)===projId; }).length;
+  var html = '';
+  if (specPills) html += '<div class="card" style="padding:12px 16px;margin-bottom:14px"><span style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.08em;margin-right:10px">SPEC</span>'+specPills+'</div>';
+  html += '<div class="tabs"><div class="tab active" onclick="switchDTab(this,\'ms\')">⬡ 里程碑</div><div class="tab" onclick="switchDTab(this,\'issues\')">⚑ Issues ('+issCount+')</div><div class="tab" onclick="switchDTab(this,\'log\')">≡ 動態 ('+logCount+')</div><div class="tab" onclick="switchDTab(this,\'spec\')">📐 規格</div><div class="tab" onclick="switchDTab(this,\'notes\')">✏ 筆記</div><div class="tab" onclick="switchDTab(this,\'export\')">↓ 匯出</div></div>';
+  html += '<div id="dtp-ms" class="sub-section active">'+buildMSPane(p)+'</div>';
+  html += '<div id="dtp-issues" class="sub-section">'+buildIssuesPane(projId)+'</div>';
+  html += '<div id="dtp-log" class="sub-section">'+buildLogPane(projId)+'</div>';
+  html += '<div id="dtp-spec" class="sub-section">'+buildSpecPane(p)+'</div>';
+  html += '<div id="dtp-notes" class="sub-section">'+buildNotesPane(p)+'</div>';
+  html += '<div id="dtp-export" class="sub-section">'+buildExportPane(projId)+'</div>';
+  el('projectDetail').innerHTML = html;
+}
+
+function switchDTab(tabEl, pane) {
+  tabEl.parentElement.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  tabEl.classList.add('active');
+  document.querySelectorAll('[id^="dtp-"]').forEach(function(p){ p.classList.remove('active'); });
   el('dtp-'+pane).classList.add('active');
 }
 
-function buildMSPane(p){
-  var now=new Date(),html='<div class="card"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:12px">里程碑時程</div>';
-  for(var i=0;i<MS_ORDER.length;i++){
-    var ms=MS_ORDER[i],m=p.milestones[ms];
-    var isLate=!m.done&&m.date&&new Date(m.date)<now;
-    var cls=m.done?'done':(isLate?'late':'');
-    html+='<div class="milestone-item '+cls+'" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;margin-bottom:6px;border:1px solid var(--border);background:'+(m.done?'#f0fdf4':isLate?'#fff7ed':'var(--surface2)')+';">';
-    html+='<input type="checkbox" style="width:14px;height:14px;accent-color:'+(p.color||'#2563eb')+';flex-shrink:0;cursor:pointer"'+(m.done?' checked':'');
-    html+=' onchange="toggleMS(\''+p.id+'\',\''+ms+'\',this.checked)">';
-    html+='<span style="display:inline-flex;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;background:'+MS_COLORS[ms]+'22;color:'+MS_COLORS[ms]+'">'+ms+'</span>';
-    html+='<input type="date" style="border:none;background:transparent;outline:none;font-family:var(--font-mono);font-size:12px;color:var(--text2);flex:1" value="'+(m.date||'')+'" onchange="updateMSDate(\''+p.id+'\',\''+ms+'\',this.value)">';
-    if(isLate) html+='<span style="font-size:10px;color:var(--orange);font-weight:700">⚠ 逾期</span>';
-    if(m.done) html+='<span style="font-size:10px;color:var(--green);font-weight:700">✓</span>';
-    html+='</div>';
+function buildMSPane(p) {
+  var now = new Date();
+  var html = '<div class="card"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:12px">里程碑時程</div>';
+  MS_ORDER.forEach(function(ms) {
+    var m = p.milestones[ms] || {date:'',done:false};
+    var isLate = !m.done && m.date && new Date(m.date) < now;
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;margin-bottom:6px;border:1px solid var(--border);background:'+(m.done?'#f0fdf4':isLate?'#fff7ed':'var(--surface2)')+';">';
+    html += '<input type="checkbox" style="width:14px;height:14px;accent-color:'+(p.color||'#2563eb')+';flex-shrink:0;cursor:pointer"'+(m.done?' checked':'');
+    html += ' onchange="toggleMS(\''+p.id+'\',\''+ms+'\',this.checked)">';
+    html += '<span style="display:inline-flex;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;background:'+MS_COLORS[ms]+'22;color:'+MS_COLORS[ms]+'">'+ms+'</span>';
+    html += '<input type="date" style="border:none;background:transparent;outline:none;font-family:var(--font-mono);font-size:12px;color:var(--text2);flex:1" value="'+(m.date||'')+'" onchange="updateMSDate(\''+p.id+'\',\''+ms+'\',this.value)">';
+    if (isLate) html += '<span style="font-size:10px;color:var(--orange);font-weight:700">⚠ 逾期</span>';
+    if (m.done) html += '<span style="font-size:10px;color:var(--green);font-weight:700">✓</span>';
+    html += '</div>';
+  });
+  return html + '</div>';
+}
+
+function buildIssuesPane(projId) {
+  var issues = state.issues.filter(function(iss){ return iss.projectId===projId; });
+  var html = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3)">Action Issues</div><button class="btn btn-primary btn-sm" onclick="openIssueModal(\''+projId+'\')">＋ 新增</button></div>';
+  if (!issues.length) { html += '<div class="empty-state" style="padding:24px"><p>尚無 Issue</p></div>'; }
+  else {
+    issues.forEach(function(iss) {
+      var op = iss.status==='resolved' ? '0.5' : '1';
+      var bc = iss.status==='resolved' ? 'badge-green' : (iss.status==='tracking' ? 'badge-yellow' : 'badge-red');
+      var bt = iss.status==='resolved' ? '已解決' : (iss.status==='tracking' ? '追蹤中' : '未解決');
+      html += '<div class="issue-item" style="opacity:'+op+'"><div style="font-size:16px">'+(PRIO_ICON[iss.priority]||'⚪')+'</div><div class="issue-text"><div>'+esc(iss.desc)+'</div><div class="issue-meta">👤 '+esc(iss.owner||'—')+' · 📅 '+esc(iss.due||'—')+(iss.milestone?' → '+iss.milestone:'')+'</div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge '+bc+'">'+bt+'</span><button class="btn btn-ghost btn-sm" onclick="toggleIssue(\''+iss.id+'\')">'+(iss.status==='resolved'?'重開':'解決')+'</button><button class="btn btn-danger btn-sm" onclick="deleteIssue(\''+iss.id+'\')">✕</button></div></div>';
+    });
   }
-  return html+'</div>';
+  return html + '</div>';
 }
 
-function buildIssuesPane(projId){
-  var issues=[];for(var i=0;i<state.issues.length;i++){if(state.issues[i].projectId===projId)issues.push(state.issues[i]);}
-  var html='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">';
-  html+='<div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3)">Action Issues</div>';
-  html+='<button class="btn btn-primary btn-sm" onclick="openIssueModal(\''+projId+'\')">＋ 新增</button></div>';
-  if(!issues.length){html+='<div class="empty-state" style="padding:24px"><p>尚無 Issue</p></div>';}
-  else{
-    for(var i=0;i<issues.length;i++){
-      var iss=issues[i],op=iss.status==='resolved'?'0.5':'1';
-      var bc=iss.status==='resolved'?'badge-green':(iss.status==='tracking'?'badge-yellow':'badge-red');
-      var bt=iss.status==='resolved'?'已解決':(iss.status==='tracking'?'追蹤中':'未解決');
-      html+='<div class="issue-item" style="opacity:'+op+'">';
-      html+='<div style="font-size:16px">'+(PRIO_ICON[iss.priority]||'⚪')+'</div>';
-      html+='<div class="issue-text"><div>'+esc(iss.desc)+'</div>';
-      html+='<div class="issue-meta">👤 '+esc(iss.owner||'—')+' · 📅 '+esc(iss.due||'—')+(iss.milestone?' → '+iss.milestone:'')+'</div></div>';
-      html+='<div style="display:flex;gap:6px;align-items:center">';
-      html+='<span class="badge '+bc+'">'+bt+'</span>';
-      html+='<button class="btn btn-ghost btn-sm" onclick="toggleIssue(\''+iss.id+'\')">'+(iss.status==='resolved'?'重開':'標記解決')+'</button>';
-      html+='<button class="btn btn-danger btn-sm" onclick="deleteIssue(\''+iss.id+'\')">✕</button>';
-      html+='</div></div>';
-    }
+function buildLogPane(projId) {
+  var logs = state.logs.filter(function(l){ return (l.projectId||l.project_id)===projId; })
+    .slice().sort(function(a,b){ return new Date(b.date)-new Date(a.date); });
+  var html = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3)">動態近況紀錄</div><button class="btn btn-primary btn-sm" onclick="openLogModal(\''+projId+'\')">＋ 新增</button></div>';
+  if (!logs.length) { html += '<div class="empty-state" style="padding:24px"><p>尚無更新</p></div>'; }
+  else {
+    logs.forEach(function(l) {
+      html += '<div class="log-entry"><div class="log-date">'+esc(l.date)+'<br><span style="color:var(--accent2);font-size:9px">'+(TYPE_LABEL[l.type]||l.type||'')+'</span></div><div><div class="log-content">'+esc(l.content)+'</div></div></div>';
+    });
   }
-  return html+'</div>';
+  return html + '</div>';
 }
 
-function buildLogPane(projId){
-  var logs=[];for(var i=0;i<state.logs.length;i++){if(state.logs[i].projectId===projId)logs.push(state.logs[i]);}
-  logs.sort(function(a,b){return new Date(b.date)-new Date(a.date);});
-  var html='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">';
-  html+='<div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3)">動態近況紀錄</div>';
-  html+='<button class="btn btn-primary btn-sm" onclick="openLogModal(\''+projId+'\')">＋ 新增</button></div>';
-  if(!logs.length){html+='<div class="empty-state" style="padding:24px"><p>尚無更新</p></div>';}
-  else{
-    for(var i=0;i<logs.length;i++){
-      var l=logs[i];
-      html+='<div class="log-entry"><div class="log-date">'+esc(l.date)+'<br><span style="color:var(--accent2);font-size:9px">'+(TYPE_LABEL[l.type]||l.type)+'</span></div>';
-      html+='<div><div class="log-content">'+esc(l.content)+'</div></div></div>';
-    }
-  }
-  return html+'</div>';
+function buildSpecPane(p) {
+  var keys = [['尺寸（吋）','size'],['解析度','resolution'],['刷新率','refreshRate'],['面板類型','panelType'],['HDR','hdr'],['連接埠','connectivity'],['色域','colorGamut'],['面板料號','panelPN']];
+  var html = '<div class="card"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:14px">產品規格（直接編輯）</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
+  keys.forEach(function(k) {
+    var v = p.spec && p.spec[k[1]] ? p.spec[k[1]] : '';
+    html += '<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text2);display:block;margin-bottom:4px">'+k[0]+'</label><input class="form-input" value="'+esc(v)+'" onchange="updateSpec(\''+p.id+'\',\''+k[1]+'\',this.value)"></div>';
+  });
+  return html + '</div></div>';
 }
 
-function buildSpecPane(p){
-  var keys=[['尺寸（吋）','size'],['解析度','resolution'],['刷新率','refreshRate'],['面板類型','panelType'],['HDR','hdr'],['連接埠','connectivity'],['色域','colorGamut'],['面板料號','panelPN']];
-  var html='<div class="card"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:14px">產品規格（直接編輯）</div>';
-  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
-  for(var i=0;i<keys.length;i++){
-    var k=keys[i][1],v=p.spec&&p.spec[k]?p.spec[k]:'';
-    html+='<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text2);display:block;margin-bottom:4px">'+keys[i][0]+'</label>';
-    html+='<input class="form-input" value="'+esc(v)+'" onchange="updateSpec(\''+p.id+'\',\''+k+'\',this.value)"></div>';
-  }
-  return html+'</div></div>';
+function buildNotesPane(p) {
+  var notes = p.notes || '';
+  return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3)">筆記</div><div id="notesBtns"><button class="btn btn-ghost btn-sm" onclick="startNotesEdit(\''+p.id+'\')">✏ 編輯</button></div></div><div id="notesView" style="font-size:13.5px;line-height:1.8;white-space:pre-wrap;min-height:80px;color:'+(notes?'var(--text)':'var(--text3)')+'">'+esc(notes||'點擊「編輯」新增筆記')+'</div><textarea id="notesEditor" class="form-textarea" style="display:none;min-height:180px;line-height:1.7">'+esc(notes)+'</textarea></div>';
 }
 
-function buildNotesPane(p){
-  var notes=p.notes||'';
-  var html='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">';
-  html+='<div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3)">筆記（開會雜記 / 窗口資訊）</div>';
-  html+='<div id="notesBtns"><button class="btn btn-ghost btn-sm" onclick="startNotesEdit(\''+p.id+'\')">✏ 編輯</button></div></div>';
-  html+='<div id="notesView" style="font-size:13.5px;line-height:1.8;white-space:pre-wrap;min-height:80px;color:'+(notes?'var(--text)':'var(--text3)')+'">'+esc(notes||'點擊「編輯」新增筆記')+'</div>';
-  html+='<textarea id="notesEditor" class="form-textarea" style="display:none;min-height:180px;line-height:1.7" placeholder="記錄開會雜事、窗口聯絡資訊...">'+esc(notes)+'</textarea></div>';
-  return html;
+function buildExportPane(projId) {
+  return '<div class="card"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:16px">匯出 Excel 文件</div><div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:#166534;margin-bottom:6px">📄 Spec Sheet Excel</div><button class="btn btn-green" id="specXlsxBtn" onclick="exportSpecExcel(\''+projId+'\')">↓ 下載 Spec Excel</button></div><div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px"><div style="font-size:11px;font-weight:700;color:#1d4ed8;margin-bottom:6px">📊 SKU Table Excel（9個地區）</div><button class="btn btn-primary" onclick="exportSKUTableExcel(\''+projId+'\')">↓ 下載 SKU Table Excel</button></div></div>';
 }
 
-function buildExportPane(projId){
-  var html='<div class="card"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:16px">匯出 Excel 文件</div>';
-  html+='<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin-bottom:12px">';
-  html+='<div style="font-size:11px;font-weight:700;color:#166534;margin-bottom:6px">📄 Spec Sheet Excel（GS27QC24 格式）</div>';
-  html+='<div style="font-size:12px;color:#166534;margin-bottom:10px">AI 根據你填入的規格自動補全 SI回填 欄位</div>';
-  html+='<button class="btn btn-green" id="specXlsxBtn" onclick="exportSpecExcel(\''+projId+'\')">↓ 下載 Spec Excel</button></div>';
-  html+='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px">';
-  html+='<div style="font-size:11px;font-weight:700;color:#1d4ed8;margin-bottom:6px">📊 SKU Table Excel（G27UPA 格式 · 9個地區）</div>';
-  html+='<div style="font-size:12px;color:#1d4ed8;margin-bottom:10px">自動產出 AP/EK/CN/SA/US/AC/AU/EU/ZA，含電源線/棧板/保固標籤</div>';
-  html+='<button class="btn btn-primary" onclick="exportSKUTableExcel(\''+projId+'\')">↓ 下載 SKU Table Excel</button></div></div>';
-  return html;
+// ============================================================
+// NOTES
+// ============================================================
+function startNotesEdit(projId) {
+  el('notesView').style.display = 'none';
+  el('notesEditor').style.display = 'block';
+  el('notesBtns').innerHTML = '<button class="btn btn-primary btn-sm" onclick="saveNotes(\''+projId+'\')">儲存</button> <button class="btn btn-ghost btn-sm" onclick="cancelNotes(\''+projId+'\')">取消</button>';
+}
+function saveNotes(projId) {
+  var p = getById(state.projects, projId); if (!p) return;
+  p.notes = el('notesEditor').value;
+  dbSaveProject(p);
+  el('notesView').textContent = p.notes || '點擊「編輯」新增筆記';
+  el('notesView').style.color = p.notes ? 'var(--text)' : 'var(--text3)';
+  el('notesView').style.display = 'block';
+  el('notesEditor').style.display = 'none';
+  el('notesBtns').innerHTML = '<button class="btn btn-ghost btn-sm" onclick="startNotesEdit(\''+projId+'\')">✏ 編輯</button>';
+}
+function cancelNotes(projId) {
+  var p = getById(state.projects, projId);
+  if (el('notesEditor')) el('notesEditor').value = p ? (p.notes||'') : '';
+  el('notesView').style.display = 'block';
+  el('notesEditor').style.display = 'none';
+  el('notesBtns').innerHTML = '<button class="btn btn-ghost btn-sm" onclick="startNotesEdit(\''+projId+'\')">✏ 編輯</button>';
 }
 
-// ===== NOTES =====
-function startNotesEdit(projId){
-  el('notesView').style.display='none';
-  el('notesEditor').style.display='block';
-  el('notesBtns').innerHTML='<button class="btn btn-primary btn-sm" onclick="saveNotes(\''+projId+'\')">儲存</button> <button class="btn btn-ghost btn-sm" onclick="cancelNotes(\''+projId+'\')">取消</button>';
+// ============================================================
+// MILESTONES
+// ============================================================
+function toggleMS(projId, ms, val) {
+  var p = getById(state.projects, projId); if (!p) return;
+  if (!p.milestones[ms]) p.milestones[ms] = {date:'',done:false};
+  p.milestones[ms].done = val;
+  dbSaveProject(p);
+  updateStats();
 }
-function saveNotes(projId){
-  var p=getById(state.projects,projId);if(!p)return;
-  p.notes=el('notesEditor').value;saveState();
-  el('notesView').textContent=p.notes||'點擊「編輯」新增筆記';
-  el('notesView').style.color=p.notes?'var(--text)':'var(--text3)';
-  el('notesView').style.display='block';el('notesEditor').style.display='none';
-  el('notesBtns').innerHTML='<button class="btn btn-ghost btn-sm" onclick="startNotesEdit(\''+projId+'\')">✏ 編輯</button>';
+function updateMSDate(projId, ms, val) {
+  var p = getById(state.projects, projId); if (!p) return;
+  if (!p.milestones[ms]) p.milestones[ms] = {date:'',done:false};
+  p.milestones[ms].date = val;
+  dbSaveProject(p);
+  updateStats();
 }
-function cancelNotes(projId){
-  var p=getById(state.projects,projId);
-  if(el('notesEditor'))el('notesEditor').value=p?p.notes||'':'';
-  el('notesView').style.display='block';el('notesEditor').style.display='none';
-  el('notesBtns').innerHTML='<button class="btn btn-ghost btn-sm" onclick="startNotesEdit(\''+projId+'\')">✏ 編輯</button>';
-}
-
-// ===== MILESTONE =====
-function toggleMS(projId,ms,val){var p=getById(state.projects,projId);if(p){p.milestones[ms].done=val;saveState();updateStats();}}
-function updateMSDate(projId,ms,val){var p=getById(state.projects,projId);if(p){p.milestones[ms].date=val;saveState();updateStats();}}
-
-// ===== SPEC EDIT =====
-function updateSpec(projId,key,val2){var p=getById(state.projects,projId);if(p){if(!p.spec)p.spec={};p.spec[key]=val2;saveState();}}
-
-// ===== TIMELINE =====
-function renderTimeline(){
-  fillFilterSel('timelineProjectFilter');
-  var filter=el('timelineProjectFilter').value;
-  var projects=filter?[getById(state.projects,filter)]:state.projects;
-  if(!projects.length||!projects[0]){el('timelineContent').innerHTML='<div class="empty-state"><div class="icon">◷</div><p>新增專案後顯示</p></div>';return;}
-  var allDates=[];
-  for(var i=0;i<projects.length;i++){for(var k=0;k<MS_ORDER.length;k++){var d=projects[i].milestones[MS_ORDER[k]].date;if(d)allDates.push(d);}}
-  allDates.sort();
-  if(!allDates.length){el('timelineContent').innerHTML='<div style="padding:24px;color:var(--text3);font-size:13px">請先在各專案設定里程碑日期</div>';return;}
-  var minD=new Date(allDates[0]);minD.setDate(minD.getDate()-14);
-  var maxD=new Date(allDates[allDates.length-1]);maxD.setDate(maxD.getDate()+14);
-  var total=Math.max(1,(maxD-minD)/86400000);
-  function pct(ds){return Math.max(0,Math.min(100,(new Date(ds)-minD)/86400000/total*100));}
-  var tp=pct(todayStr());
-  var months=[],cur=new Date(minD);cur.setDate(1);
-  while(cur<=maxD){months.push({l:cur.toLocaleDateString('zh-TW',{month:'short'}),p:pct(cur.toISOString().slice(0,10))});cur.setMonth(cur.getMonth()+1);}
-  var html='<div style="overflow-x:auto"><div style="min-width:700px">';
-  html+='<div style="display:flex;margin-bottom:6px"><div style="width:190px;flex-shrink:0"></div><div style="flex:1;position:relative;height:22px;border-bottom:1px solid var(--border)">';
-  for(var i=0;i<months.length;i++) html+='<span style="position:absolute;left:'+months[i].p+'%;font-size:10px;color:var(--text3);transform:translateX(-50%)">'+months[i].l+'</span>';
-  html+='<div style="position:absolute;left:'+tp+'%;top:0;bottom:-9999px;width:1px;background:var(--red);opacity:.4;z-index:2"></div>';
-  html+='<span style="position:absolute;left:'+tp+'%;top:1px;font-size:9px;color:var(--red);transform:translateX(-50%);background:#fee2e2;padding:1px 4px;border-radius:3px">今天</span>';
-  html+='</div></div>';
-  for(var pi=0;pi<projects.length;pi++){
-    var p=projects[pi],c=p.color||'#2563eb';
-    var dates=[];for(var k=0;k<MS_ORDER.length;k++){if(p.milestones[MS_ORDER[k]].date)dates.push(p.milestones[MS_ORDER[k]].date);}
-    var sep=pi<projects.length-1?'border-bottom:1px solid var(--surface2)':'';
-    html+='<div style="display:flex;align-items:center;margin-bottom:14px;padding-bottom:14px;'+sep+'">';
-    html+='<div style="width:190px;flex-shrink:0;padding-right:12px;cursor:pointer" onclick="showPage(\'project\',\''+p.id+'\')"><div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:'+c+';display:inline-block"></span>';
-    html+='<span style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.name)+'</span></div>';
-    var sub=(p.spec&&p.spec.refreshRate?p.spec.refreshRate:'')+' '+(p.spec&&p.spec.resolution?p.spec.resolution:'');
-    if(sub.trim()) html+='<div style="font-size:10px;color:var(--text3);padding-left:13px;margin-top:1px">'+esc(sub.trim())+'</div>';
-    html+='</div><div style="flex:1;position:relative;height:48px">';
-    if(dates.length>=2) html+='<div style="position:absolute;top:23px;left:'+pct(dates[0])+'%;width:'+(pct(dates[dates.length-1])-pct(dates[0]))+'%;height:2px;background:var(--border)"></div>';
-    for(var k=0;k<MS_ORDER.length;k++){
-      var ms=MS_ORDER[k],m=p.milestones[ms];if(!m.date)continue;
-      var lp=pct(m.date);
-      html+='<div style="position:absolute;top:14px;left:'+lp+'%;transform:translateX(-50%);z-index:1" title="'+ms+': '+m.date+'">';
-      html+='<div style="width:18px;height:18px;border-radius:50%;background:'+(m.done?c:'#fff')+';border:2px solid '+(m.done?c:MS_COLORS[ms])+';display:flex;align-items:center;justify-content:center;font-size:8px;color:'+(m.done?'#fff':MS_COLORS[ms])+';font-weight:700">'+(m.done?'✓':'')+'</div>';
-      html+='<div style="position:absolute;top:20px;left:50%;transform:translateX(-50%);font-size:8.5px;color:'+MS_COLORS[ms]+';font-weight:700;white-space:nowrap">'+ms+'</div>';
-      html+='<div style="position:absolute;top:30px;left:50%;transform:translateX(-50%);font-size:8px;color:var(--text3);white-space:nowrap;font-family:var(--font-mono)">'+m.date.slice(5)+'</div></div>';
-    }
-    html+='</div></div>';
-  }
-  html+='</div></div>';
-  el('timelineContent').innerHTML=html;
+function updateSpec(projId, key, val2) {
+  var p = getById(state.projects, projId); if (!p) return;
+  if (!p.spec) p.spec = {};
+  p.spec[key] = val2;
+  dbSaveProject(p);
 }
 
-// ===== PROJECT MODAL =====
-var editProjId=null;
-function openProjectModal(projId){
-  editProjId=projId||null;
-  var p=projId?getById(state.projects,projId):null;
-  el('projectModalTitle').textContent=p?'編輯專案':'新增專案';
-  el('projectDeleteBtn').style.display=p?'inline-flex':'none';
-  el('pName').value=p?p.name:'';
-  el('pVendor').value=p?p.vendor||'':'';
-  el('pType').value=p?p.type||'Consumer Monitor':'Consumer Monitor';
-  el('pStatus').value=p?p.status||'planning':'planning';
-  el('pOwner').value=p?p.owner||'':'';
-  el('pNotes').value=p?p.notes||'':'';
-  var spec=p&&p.spec?p.spec:{};
-  el('fSize').value=spec.size||'';el('fRes').value=spec.resolution||'';el('fHz').value=spec.refreshRate||'';
-  el('fPanel').value=spec.panelType||'';el('fHdr').value=spec.hdr||'';el('fConn').value=spec.connectivity||'';
-  el('fGamut').value=spec.colorGamut||'';el('fPanelPN').value=spec.panelPN||'';
-  for(var i=0;i<MS_ORDER.length;i++){
-    var mv=(p&&p.milestones&&p.milestones[MS_ORDER[i]])?p.milestones[MS_ORDER[i]].date||'':'';
-    el('ms_'+MS_ORDER[i]).value=mv;
-  }
-  openModal('projectModal');
-}
-function saveProject(){
-  var name=el('pName').value.trim();if(!name){alert('請輸入專案名稱');return;}
-  var spec={size:el('fSize').value,resolution:el('fRes').value,refreshRate:el('fHz').value,panelType:el('fPanel').value,hdr:el('fHdr').value,connectivity:el('fConn').value,colorGamut:el('fGamut').value,panelPN:el('fPanelPN').value};
-  var milestones={};
-  for(var i=0;i<MS_ORDER.length;i++){
-    var ms=MS_ORDER[i];
-    var existDone=(editProjId&&getById(state.projects,editProjId)&&getById(state.projects,editProjId).milestones[ms])?getById(state.projects,editProjId).milestones[ms].done:false;
-    milestones[ms]={date:el('ms_'+ms).value,done:existDone};
-  }
-  if(editProjId){
-    var p=getById(state.projects,editProjId);
-    p.name=name;p.vendor=el('pVendor').value;p.type=el('pType').value;p.status=el('pStatus').value;
-    p.owner=el('pOwner').value;
-    p.notes=el('pNotes').value;
-    if(!p.color) p.color = '#2563eb';
-    p.spec=spec;p.milestones=milestones;
-  } else {
-    state.projects.push({
-  id:mkId(),
-  name:name,
-  vendor:el('pVendor').value,
-  type:el('pType').value,
-  status:el('pStatus').value,
-  owner:el('pOwner').value,
-  color:'#2563eb',
-  notes:el('pNotes').value,
-  spec:spec,
-  milestones:milestones
-});
-  saveState();closeModal('projectModal');renderNav();updateStats();
-  if(editProjId) showPage('project',editProjId); else {renderDashboard();}
-}
-function deleteCurrentProject(){
-  if(!editProjId||!confirm('確定要刪除此專案？所有相關資料也會一併刪除。'))return;
-  var id=editProjId;
-  state.projects=removeById(state.projects,id);
-  var ni=[];for(var i=0;i<state.issues.length;i++){if(state.issues[i].projectId!==id)ni.push(state.issues[i]);}state.issues=ni;
-  var nl=[];for(var i=0;i<state.logs.length;i++){if(state.logs[i].projectId!==id)nl.push(state.logs[i]);}state.logs=nl;
-  saveState();closeModal('projectModal');editProjId=null;renderNav();updateStats();showPage('dashboard');renderDashboard();
-}
-function openAddMilestoneModal(){
+// ============================================================
+// MILESTONE MODAL
+// ============================================================
+function openAddMilestoneModal() {
   fillProjSel('mProject');
-  if(currentProjId && el('mProject')) {
-    el('mProject').value = currentProjId;
-  }
-
-  el('mName').value = '';
+  if (currentProjId && el('mProject')) el('mProject').value = currentProjId;
+  el('mName').value = 'EVT';
   el('mDate').value = '';
   el('mStatus').value = 'pending';
   el('mNote').value = '';
-
   openModal('milestoneModal');
 }
 
-function saveMilestone(){
+function saveMilestone() {
   var projectId = el('mProject').value;
-  var msName = el('mName').value.trim();
-  var msDate = el('mDate').value;
-  var msStatus = el('mStatus').value;
-  var msNote = el('mNote').value.trim();
-
-  if(!projectId){
-    alert('請先選擇專案');
-    return;
-  }
-
-  if(!msName){
-    alert('請輸入里程碑名稱');
-    return;
-  }
-
+  if (!projectId) { alert('請先選擇專案'); return; }
   var p = getById(state.projects, projectId);
-  if(!p){
-    alert('找不到專案');
-    return;
-  }
-
-  var matchedKey = null;
-  for(var i=0; i<MS_ORDER.length; i++){
-    if(MS_ORDER[i].toLowerCase() === msName.toLowerCase()){
-      matchedKey = MS_ORDER[i];
-      break;
-    }
-  }
-
-  if(!matchedKey){
-    alert('目前只支援這些 milestone 名稱：' + MS_ORDER.join(', '));
-    return;
-  }
-
-  if(!p.milestones) p.milestones = {};
-  if(!p.milestones[matchedKey]) {
-    p.milestones[matchedKey] = { date:'', done:false };
-  }
-
-  p.milestones[matchedKey].date = msDate;
-  p.milestones[matchedKey].done = (msStatus === 'done');
-  p.milestones[matchedKey].note = msNote;
-
-  saveState();
+  if (!p) { alert('找不到專案'); return; }
+  var matchedKey = el('mName').value;
+  if (!p.milestones) p.milestones = defaultMilestones();
+  if (!p.milestones[matchedKey]) p.milestones[matchedKey] = {date:'',done:false};
+  p.milestones[matchedKey].date = el('mDate').value;
+  p.milestones[matchedKey].done = (el('mStatus').value === 'done');
+  p.milestones[matchedKey].note = el('mNote').value.trim();
+  dbSaveProject(p);
   closeModal('milestoneModal');
   updateStats();
-
-  if(currentPage === 'project' && currentProjId === projectId){
-    renderProjDetail(projectId);
-  } else {
-    renderTimeline();
-  }
+  if (currentPage === 'project' && currentProjId === projectId) renderProjDetail(projectId);
+  else renderTimeline();
 }
-  
-// ===== ISSUES =====
-function openIssueModal(presetProjId){
+
+// ============================================================
+// ISSUES
+// ============================================================
+function openIssueModal(presetProjId) {
   fillProjSel('iProject');
-  if(presetProjId&&el('iProject'))el('iProject').value=presetProjId;
-  el('iDesc').value='';el('iOwner').value='';el('iDue').value='';
-  el('iPrio').value='high';el('iStatus').value='open';el('iMilestone').value='';
+  if (presetProjId && el('iProject')) el('iProject').value = presetProjId;
+  el('iDesc').value = ''; el('iOwner').value = ''; el('iDue').value = '';
+  el('iPrio').value = 'high'; el('iStatus').value = 'open'; el('iMilestone').value = '';
   openModal('issueModal');
 }
-function saveIssue(){
-  var desc=el('iDesc').value.trim();if(!desc)return;
-  state.issues.push({id:mkId(),projectId:el('iProject').value,desc:desc,priority:el('iPrio').value,status:el('iStatus').value,owner:el('iOwner').value,due:el('iDue').value,milestone:el('iMilestone').value});
-  saveState();closeModal('issueModal');updateStats();renderDashboard();
-  if(currentPage==='issues')renderIssues();
-  if(currentPage==='project'&&currentProjId)renderProjDetail(currentProjId);
+function saveIssue() {
+  var desc = el('iDesc').value.trim(); if (!desc) return;
+  var iss = {
+    id: mkId(), projectId: el('iProject').value, desc: desc,
+    priority: el('iPrio').value, status: el('iStatus').value,
+    owner: el('iOwner').value, due: el('iDue').value,
+    milestone: el('iMilestone').value
+  };
+  state.issues.push(iss);
+  dbSaveIssue(iss);
+  closeModal('issueModal');
+  updateStats(); renderDashboard();
+  if (currentPage === 'issues') renderIssues();
+  if (currentPage === 'project' && currentProjId) renderProjDetail(currentProjId);
 }
-function toggleIssue(id){
-  var iss=getById(state.issues,id);if(!iss)return;
-  iss.status=iss.status==='resolved'?'open':'resolved';
-  saveState();updateStats();
-  if(currentPage==='issues')renderIssues();
-  if(currentPage==='project'&&currentProjId)renderProjDetail(currentProjId);
+function toggleIssue(id) {
+  var iss = getById(state.issues, id); if (!iss) return;
+  iss.status = iss.status === 'resolved' ? 'open' : 'resolved';
+  dbSaveIssue(iss);
+  updateStats();
+  if (currentPage === 'issues') renderIssues();
+  if (currentPage === 'project' && currentProjId) renderProjDetail(currentProjId);
 }
-function deleteIssue(id){
-  state.issues=removeById(state.issues,id);saveState();updateStats();
-  if(currentPage==='issues')renderIssues();
-  if(currentPage==='project'&&currentProjId)renderProjDetail(currentProjId);
+function deleteIssue(id) {
+  state.issues = removeById(state.issues, id);
+  dbDeleteIssue(id);
+  updateStats();
+  if (currentPage === 'issues') renderIssues();
+  if (currentPage === 'project' && currentProjId) renderProjDetail(currentProjId);
 }
-function renderIssues(){
+function renderIssues() {
   fillFilterSel('issueProjectFilter');
-  var pf=el('issueProjectFilter').value,pr=el('issuePrioFilter').value,list=[];
-  for(var i=0;i<state.issues.length;i++){
-    var iss=state.issues[i];
-    if(pf&&iss.projectId!==pf)continue;if(pr&&iss.priority!==pr)continue;
-    list.push(iss);
-  }
-  if(!list.length){el('issueList').innerHTML='<div class="empty-state"><div class="icon">⚑</div><p>尚無 Key Issues</p></div>';return;}
-  var html='';
-  for(var i=0;i<list.length;i++){
-    var iss=list[i],proj=getById(state.projects,iss.projectId);
-    var bc=iss.status==='resolved'?'badge-green':(iss.status==='tracking'?'badge-yellow':'badge-red');
-    var bt=iss.status==='resolved'?'已解決':(iss.status==='tracking'?'追蹤中':'未解決');
-    html+='<div class="issue-item" style="opacity:'+(iss.status==='resolved'?'0.5':'1')+'">';
-    html+='<div style="font-size:16px">'+(PRIO_ICON[iss.priority]||'⚪')+'</div>';
-    html+='<div class="issue-text"><div>'+esc(iss.desc)+'</div>';
-    html+='<div class="issue-meta">'+esc(proj?proj.name:'—')+' · '+esc(iss.owner||'—')+' · '+esc(iss.due||'—')+(iss.milestone?' → '+iss.milestone:'')+'</div></div>';
-    html+='<div style="display:flex;gap:6px;align-items:center"><span class="badge '+bc+'">'+bt+'</span>';
-    html+='<button class="btn btn-ghost btn-sm" onclick="toggleIssue(\''+iss.id+'\')">'+(iss.status==='resolved'?'重開':'解決')+'</button>';
-    html+='<button class="btn btn-danger btn-sm" onclick="deleteIssue(\''+iss.id+'\')">✕</button></div></div>';
-  }
-  el('issueList').innerHTML=html;
+  var pf = el('issueProjectFilter').value, pr = el('issuePrioFilter').value;
+  var list = state.issues.filter(function(iss) {
+    if (pf && iss.projectId !== pf) return false;
+    if (pr && iss.priority !== pr) return false;
+    return true;
+  });
+  if (!list.length) { el('issueList').innerHTML = '<div class="empty-state"><div class="icon">⚑</div><p>尚無 Key Issues</p></div>'; return; }
+  var html = '';
+  list.forEach(function(iss) {
+    var proj = getById(state.projects, iss.projectId);
+    var bc = iss.status==='resolved' ? 'badge-green' : (iss.status==='tracking' ? 'badge-yellow' : 'badge-red');
+    var bt = iss.status==='resolved' ? '已解決' : (iss.status==='tracking' ? '追蹤中' : '未解決');
+    html += '<div class="issue-item" style="opacity:'+(iss.status==='resolved'?'0.5':'1')+'"><div style="font-size:16px">'+(PRIO_ICON[iss.priority]||'⚪')+'</div><div class="issue-text"><div>'+esc(iss.desc)+'</div><div class="issue-meta">'+esc(proj?proj.name:'—')+' · '+esc(iss.owner||'—')+' · '+esc(iss.due||'—')+(iss.milestone?' → '+iss.milestone:'')+'</div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge '+bc+'">'+bt+'</span><button class="btn btn-ghost btn-sm" onclick="toggleIssue(\''+iss.id+'\')">'+(iss.status==='resolved'?'重開':'解決')+'</button><button class="btn btn-danger btn-sm" onclick="deleteIssue(\''+iss.id+'\')">✕</button></div></div>';
+  });
+  el('issueList').innerHTML = html;
 }
 
-// ===== LOG =====
-function openAddLogModal(){ openLogModal(null); }
-function openLogModal(presetProjId){
+// ============================================================
+// LOG
+// ============================================================
+function openAddLogModal() { openLogModal(null); }
+function openLogModal(presetProjId) {
   fillProjSel('lProject');
-  if(presetProjId&&el('lProject'))el('lProject').value=presetProjId;
-  el('lContent').value='';el('lDate').value=todayStr();el('lType').value='update';
+  if (presetProjId && el('lProject')) el('lProject').value = presetProjId;
+  el('lContent').value = ''; el('lDate').value = todayStr(); el('lType').value = 'update';
   openModal('logModal');
 }
-function saveLog(){
-  var c=el('lContent').value.trim();if(!c)return;
-  state.logs.push({id:mkId(),projectId:el('lProject').value,content:c,date:el('lDate').value,type:el('lType').value});
-  saveState();closeModal('logModal');
-  if(currentPage==='log')renderLog();
-  if(currentPage==='project'&&currentProjId)renderProjDetail(currentProjId);
+function saveLog() {
+  var c = el('lContent').value.trim(); if (!c) return;
+  var log = {
+    id: mkId(), projectId: el('lProject').value, project_id: el('lProject').value,
+    content: c, date: el('lDate').value, type: el('lType').value
+  };
+  state.logs.push(log);
+  dbSaveLog(log);
+  closeModal('logModal');
+  if (currentPage === 'log') renderLog();
+  if (currentPage === 'project' && currentProjId) renderProjDetail(currentProjId);
   renderDashboard();
 }
-function renderLog(){
+function renderLog() {
   fillFilterSel('logProjectFilter');
-  var pf=el('logProjectFilter').value;
-  var list=state.logs.slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
-  if(pf){var tmp=[];for(var i=0;i<list.length;i++){if(list[i].projectId===pf)tmp.push(list[i]);}list=tmp;}
-  if(!list.length){el('logList').innerHTML='<div class="empty-state"><div class="icon">≡</div><p>尚無動態記錄</p></div>';return;}
-  var html='';
-  for(var i=0;i<list.length;i++){
-    var l=list[i],proj=getById(state.projects,l.projectId);
-    html+='<div class="log-entry"><div class="log-date">'+esc(l.date)+'<br><span style="color:var(--accent2);font-size:9px">'+(TYPE_LABEL[l.type]||l.type)+'</span></div>';
-    html+='<div><div class="log-proj">'+esc(proj?proj.name:'—')+'</div><div class="log-content">'+esc(l.content)+'</div></div></div>';
+  var pf = el('logProjectFilter').value;
+  var list = state.logs.slice().sort(function(a,b){ return new Date(b.date)-new Date(a.date); });
+  if (pf) list = list.filter(function(l){ return (l.projectId||l.project_id)===pf; });
+  if (!list.length) { el('logList').innerHTML = '<div class="empty-state"><div class="icon">≡</div><p>尚無動態記錄</p></div>'; return; }
+  var html = '';
+  list.forEach(function(l) {
+    var proj = getById(state.projects, l.projectId || l.project_id);
+    html += '<div class="log-entry"><div class="log-date">'+esc(l.date)+'<br><span style="color:var(--accent2);font-size:9px">'+(TYPE_LABEL[l.type]||l.type||'')+'</span></div><div><div class="log-proj">'+esc(proj?proj.name:'—')+'</div><div class="log-content">'+esc(l.content)+'</div></div></div>';
+  });
+  el('logList').innerHTML = html;
+}
+
+// ============================================================
+// TIMELINE
+// ============================================================
+function renderTimeline() {
+  fillFilterSel('timelineProjectFilter');
+  var filter = el('timelineProjectFilter').value;
+  var projects = filter ? [getById(state.projects, filter)].filter(Boolean) : state.projects;
+  if (!projects.length) { el('timelineContent').innerHTML = '<div class="empty-state"><div class="icon">◷</div><p>新增專案後顯示</p></div>'; return; }
+  var allDates = [];
+  projects.forEach(function(p) {
+    MS_ORDER.forEach(function(k){ if (p.milestones[k] && p.milestones[k].date) allDates.push(p.milestones[k].date); });
+  });
+  allDates.sort();
+  if (!allDates.length) { el('timelineContent').innerHTML = '<div style="padding:24px;color:var(--text3);font-size:13px">請先在各專案設定里程碑日期</div>'; return; }
+  var minD = new Date(allDates[0]); minD.setDate(minD.getDate()-14);
+  var maxD = new Date(allDates[allDates.length-1]); maxD.setDate(maxD.getDate()+14);
+  var total = Math.max(1, (maxD-minD)/86400000);
+  function pct(ds) { return Math.max(0, Math.min(100, (new Date(ds)-minD)/86400000/total*100)); }
+  var tp = pct(todayStr());
+  var months = [], cur = new Date(minD); cur.setDate(1);
+  while (cur <= maxD) {
+    months.push({l:cur.toLocaleDateString('zh-TW',{month:'short'}), p:pct(cur.toISOString().slice(0,10))});
+    cur.setMonth(cur.getMonth()+1);
   }
-  el('logList').innerHTML=html;
+  var html = '<div style="overflow-x:auto"><div style="min-width:700px">';
+  html += '<div style="display:flex;margin-bottom:6px"><div style="width:190px;flex-shrink:0"></div><div style="flex:1;position:relative;height:22px;border-bottom:1px solid var(--border)">';
+  months.forEach(function(m) { html += '<span style="position:absolute;left:'+m.p+'%;font-size:10px;color:var(--text3);transform:translateX(-50%)">'+m.l+'</span>'; });
+  html += '<div style="position:absolute;left:'+tp+'%;top:0;bottom:-9999px;width:1px;background:var(--red);opacity:.4;z-index:2"></div>';
+  html += '<span style="position:absolute;left:'+tp+'%;top:1px;font-size:9px;color:var(--red);transform:translateX(-50%);background:#fee2e2;padding:1px 4px;border-radius:3px">今天</span>';
+  html += '</div></div>';
+  projects.forEach(function(p, pi) {
+    var c = p.color || '#2563eb';
+    var dates = MS_ORDER.filter(function(k){ return p.milestones[k] && p.milestones[k].date; }).map(function(k){ return p.milestones[k].date; });
+    var sep = pi < projects.length-1 ? 'border-bottom:1px solid var(--surface2)' : '';
+    html += '<div style="display:flex;align-items:center;margin-bottom:14px;padding-bottom:14px;'+sep+'">';
+    html += '<div style="width:190px;flex-shrink:0;padding-right:12px;cursor:pointer" onclick="showPage(\'project\',\''+p.id+'\')"><div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:'+c+';display:inline-block"></span><span style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.name)+'</span></div></div>';
+    html += '<div style="flex:1;position:relative;height:48px">';
+    if (dates.length >= 2) html += '<div style="position:absolute;top:23px;left:'+pct(dates[0])+'%;width:'+(pct(dates[dates.length-1])-pct(dates[0]))+'%;height:2px;background:var(--border)"></div>';
+    MS_ORDER.forEach(function(ms) {
+      var m = p.milestones[ms]; if (!m || !m.date) return;
+      var lp = pct(m.date);
+      html += '<div style="position:absolute;top:14px;left:'+lp+'%;transform:translateX(-50%);z-index:1" title="'+ms+': '+m.date+'"><div style="width:18px;height:18px;border-radius:50%;background:'+(m.done?c:'#fff')+';border:2px solid '+(m.done?c:MS_COLORS[ms])+';display:flex;align-items:center;justify-content:center;font-size:8px;color:'+(m.done?'#fff':MS_COLORS[ms])+';font-weight:700">'+(m.done?'✓':'')+'</div><div style="position:absolute;top:20px;left:50%;transform:translateX(-50%);font-size:8.5px;color:'+MS_COLORS[ms]+';font-weight:700;white-space:nowrap">'+ms+'</div><div style="position:absolute;top:30px;left:50%;transform:translateX(-50%);font-size:8px;color:var(--text3);white-space:nowrap;font-family:var(--font-mono)">'+m.date.slice(5)+'</div></div>';
+    });
+    html += '</div></div>';
+  });
+  html += '</div></div>';
+  el('timelineContent').innerHTML = html;
 }
 
-// ===== SKU =====
-function openAddSKUModal(){openModal('skuModal');['skuModel','skuSeries','skuSize','skuRes','skuHz','skuConn','skuMkt'].forEach(function(id){el(id).value='';});}
-function saveSKU(){
-  state.skus.push({id:mkId(),model:el('skuModel').value,series:el('skuSeries').value,size:el('skuSize').value,panel:el('skuPanel').value,resolution:el('skuRes').value,hz:el('skuHz').value,hdr:el('skuHdr')?el('skuHdr').value:'',connectivity:el('skuConn').value,market:el('skuMkt').value,status:el('skuStatus').value});
-  saveState();closeModal('skuModal');renderSKU();
+// ============================================================
+// SKU
+// ============================================================
+function openAddSKUModal() {
+  ['skuModel','skuSeries','skuSize','skuRes','skuHz','skuConn','skuMkt','skuHdr'].forEach(function(id){ if(el(id)) el(id).value=''; });
+  openModal('skuModal');
 }
-function deleteSKU(id){if(!confirm('確定刪除？'))return;state.skus=removeById(state.skus,id);saveState();renderSKU();}
-function renderSKU(){
-  var sl={planning:'規劃中',active:'開發中',mp:'量產',eol:'EOL'};
-  var tbody=el('skuTableBody');
-  if(!state.skus.length){tbody.innerHTML='<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text3)">尚無 SKU</td></tr>';return;}
-  var html='';
-  for(var i=0;i<state.skus.length;i++){
-    var s=state.skus[i];
-    html+='<tr><td style="font-weight:700;font-family:var(--font-mono);font-size:12px">'+esc(s.model)+'</td>';
-    html+='<td>'+esc(s.series)+'</td><td>'+esc(s.size)+'</td><td>'+esc(s.panel)+'</td>';
-    html+='<td style="font-family:var(--font-mono);font-size:12px">'+esc(s.resolution)+'</td>';
-    html+='<td>'+esc(s.hz)+'</td><td>'+esc(s.hdr||'—')+'</td><td style="font-size:12px">'+esc(s.connectivity)+'</td><td>'+esc(s.market)+'</td>';
-    html+='<td><span class="badge '+(s.status==='mp'?'badge-green':s.status==='active'?'badge-blue':'badge-yellow')+'">'+esc(sl[s.status]||s.status)+'</span></td>';
-    html+='<td><button class="btn btn-danger btn-sm" onclick="deleteSKU(\''+s.id+'\')">✕</button></td></tr>';
-  }
-  tbody.innerHTML=html;
+function saveSKU() {
+  var sku = {
+    id: mkId(), model: el('skuModel').value, series: el('skuSeries').value,
+    size: el('skuSize').value, panel: el('skuPanel').value,
+    resolution: el('skuRes').value, hz: el('skuHz').value,
+    hdr: el('skuHdr') ? el('skuHdr').value : '',
+    connectivity: el('skuConn').value, market: el('skuMkt').value,
+    status: el('skuStatus').value
+  };
+  state.skus.push(sku);
+  dbSaveSKU(sku);
+  closeModal('skuModal');
+  renderSKU();
 }
-function exportSKUExcel(){
-  if(!state.skus.length){alert('尚無 SKU 資料');return;}
-  var h=['Model/SKU','系列','尺寸','面板','解析度','更新率','HDR','介面','目標市場','狀態'];
-  var rows=[h];
-  for(var i=0;i<state.skus.length;i++){var s=state.skus[i];rows.push([s.model,s.series,s.size,s.panel,s.resolution,s.hz,s.hdr,s.connectivity,s.market,s.status]);}
-  var ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=h.map(function(){return{wch:16};});
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'SKU Table');
-  XLSX.writeFile(wb,'SKU_Table.xlsx');
+function deleteSKU(id) {
+  if (!confirm('確定刪除？')) return;
+  state.skus = removeById(state.skus, id);
+  dbDeleteSKU(id);
+  renderSKU();
+}
+function renderSKU() {
+  var sl = {planning:'規劃中',active:'開發中',mp:'量產',eol:'EOL'};
+  var tbody = el('skuTableBody');
+  if (!state.skus.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text3)">尚無 SKU</td></tr>'; return; }
+  var html = '';
+  state.skus.forEach(function(s) {
+    html += '<tr><td style="font-weight:700;font-family:var(--font-mono);font-size:12px">'+esc(s.model)+'</td><td>'+esc(s.series)+'</td><td>'+esc(s.size)+'</td><td>'+esc(s.panel)+'</td><td style="font-family:var(--font-mono);font-size:12px">'+esc(s.resolution)+'</td><td>'+esc(s.hz)+'</td><td>'+esc(s.hdr||'—')+'</td><td style="font-size:12px">'+esc(s.connectivity)+'</td><td>'+esc(s.market)+'</td><td><span class="badge '+(s.status==='mp'?'badge-green':s.status==='active'?'badge-blue':'badge-yellow')+'">'+esc(sl[s.status]||s.status)+'</span></td><td><button class="btn btn-danger btn-sm" onclick="deleteSKU(\''+s.id+'\')">✕</button></td></tr>';
+  });
+  tbody.innerHTML = html;
+}
+function exportSKUExcel() {
+  if (!state.skus.length) { alert('尚無 SKU 資料'); return; }
+  var h = ['Model/SKU','系列','尺寸','面板','解析度','更新率','HDR','介面','目標市場','狀態'];
+  var rows = [h];
+  state.skus.forEach(function(s){ rows.push([s.model,s.series,s.size,s.panel,s.resolution,s.hz,s.hdr,s.connectivity,s.market,s.status]); });
+  var ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = h.map(function(){ return {wch:16}; });
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'SKU Table');
+  XLSX.writeFile(wb, 'SKU_Table.xlsx');
 }
 
-// ===== REPORT =====
-function updateReportCheckboxes(){
-  var e2=el('reportProjCheckboxes');
-  if(!state.projects.length){e2.innerHTML='<span style="font-size:13px;color:var(--text3)">請先新增專案</span>';return;}
-  var html='';
-  for(var i=0;i<state.projects.length;i++) html+='<label class="checkbox-item"><input type="checkbox" checked value="'+state.projects[i].id+'" name="reportProj"> '+esc(state.projects[i].name)+'</label>';
-  e2.innerHTML=html;
+// ============================================================
+// SPEC MANAGEMENT PAGE
+// ============================================================
+function switchSpecTab(tabEl, tab) {
+  tabEl.parentElement.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  tabEl.classList.add('active');
+  document.querySelectorAll('#page-spec .sub-section').forEach(function(s){ s.classList.remove('active'); });
+  el('spec-'+tab).classList.add('active');
 }
-function saveApiKey(){localStorage.setItem('pmApiKey',el('apikeyInput').value);}
-function getApiKey(){return el('apikeyInput')?el('apikeyInput').value.trim():localStorage.getItem('pmApiKey')||'';}
+function loadSpec() { /* Spec data lives in project.spec */ }
+function saveSpec() { alert('請直接在專案頁面的「規格」標籤編輯並儲存'); }
+function loadRFQ() {}
+function saveRFQ() {}
+function exportSpecExcelPage() {
+  var projId = el('specProjectSelect').value;
+  if (!projId) { alert('請選擇專案'); return; }
+  exportSpecExcel(projId);
+}
 
-function generateReport(){
-  var type=el('reportType').value;
-  var sel=document.querySelectorAll('[name="reportProj"]:checked');
-  var selIds=[];for(var i=0;i<sel.length;i++)selIds.push(sel[i].value);
-  if(!selIds.length){alert('請至少選擇一個專案');return;}
-  var apiKey=getApiKey();
-  if(!apiKey){alert('請先在上方輸入 Anthropic API Key');return;}
-  var ctx='';
-  for(var i=0;i<selIds.length;i++){
-    var p=getById(state.projects,selIds[i]);if(!p)continue;
-    ctx+='\n## '+p.name+' ('+(p.vendor||'')+')\n狀態:'+p.status+' 類型:'+p.type+'\n';
-    if(p.spec&&p.spec.size) ctx+='規格:'+p.spec.size+'"/'+(p.spec.resolution||'')+'/'+(p.spec.refreshRate||'')+'/'+(p.spec.panelType||'')+'\n';
-    var msLine='';for(var k=0;k<MS_ORDER.length;k++){var m=p.milestones[MS_ORDER[k]];msLine+=MS_ORDER[k]+'('+(m.date||'TBD')+','+(m.done?'完成':'未完成')+') ';}
-    ctx+='Milestones:'+msLine+'\n';
-    if(el('rIncludeIssues')&&el('rIncludeIssues').checked){
-      var il=[];for(var j=0;j<state.issues.length;j++){var iss=state.issues[j];if(iss.projectId===p.id&&iss.status!=='resolved')il.push('['+iss.priority+']'+iss.desc);}
-      if(il.length)ctx+='未解決Issues:'+il.join('; ')+'\n';
+// ============================================================
+// REPORT
+// ============================================================
+function renderReportCheckboxes() {
+  var e2 = el('reportProjCheckboxes');
+  if (!state.projects.length) { e2.innerHTML = '<span style="font-size:13px;color:var(--text3)">請先新增專案</span>'; return; }
+  var html = '';
+  state.projects.forEach(function(p) {
+    html += '<label class="checkbox-item"><input type="checkbox" checked value="'+p.id+'" name="reportProj"> '+esc(p.name)+'</label>';
+  });
+  e2.innerHTML = html;
+}
+function saveApiKey() { localStorage.setItem('pmApiKey', el('apikeyInput').value); }
+function getApiKey() { return (el('apikeyInput') ? el('apikeyInput').value.trim() : '') || localStorage.getItem('pmApiKey') || ''; }
+
+function generateReport() {
+  var type = el('reportType').value;
+  var sel = document.querySelectorAll('[name="reportProj"]:checked');
+  var selIds = Array.from(sel).map(function(s){ return s.value; });
+  if (!selIds.length) { alert('請至少選擇一個專案'); return; }
+  var apiKey = getApiKey();
+  if (!apiKey) { alert('請先在上方輸入 Anthropic API Key'); return; }
+  var ctx = '';
+  selIds.forEach(function(pid) {
+    var p = getById(state.projects, pid); if (!p) return;
+    ctx += '\n## '+p.name+' ('+(p.vendor||'')+')\n狀態:'+p.status+'\n';
+    if (p.spec && p.spec.size) ctx += '規格:'+p.spec.size+'\"/'+(p.spec.resolution||'')+'/'+(p.spec.refreshRate||'')+'\n';
+    var msLine = '';
+    MS_ORDER.forEach(function(k){ var m=p.milestones[k]; msLine+=k+'('+(m?m.date||'TBD':'TBD')+','+(m&&m.done?'完成':'未完成')+') '; });
+    ctx += 'Milestones:'+msLine+'\n';
+    if (el('rIncludeIssues') && el('rIncludeIssues').checked) {
+      var il = state.issues.filter(function(iss){ return iss.projectId===p.id && iss.status!=='resolved'; }).map(function(iss){ return '['+iss.priority+']'+iss.desc; });
+      if (il.length) ctx += '未解決Issues:'+il.join('; ')+'\n';
     }
-    if(el('rIncludeLog')&&el('rIncludeLog').checked){
-      var ll2=[];var pl=[];for(var j=0;j<state.logs.length;j++){if(state.logs[j].projectId===p.id)pl.push(state.logs[j]);}
-      pl.sort(function(a,b){return new Date(b.date)-new Date(a.date);});
-      for(var j=0;j<Math.min(3,pl.length);j++)ll2.push('['+pl[j].date+']'+pl[j].content);
-      if(ll2.length)ctx+='近期動態:'+ll2.join(' | ')+'\n';
+    if (el('rIncludeLog') && el('rIncludeLog').checked) {
+      var pl = state.logs.filter(function(l){ return (l.projectId||l.project_id)===p.id; }).sort(function(a,b){ return new Date(b.date)-new Date(a.date); }).slice(0,3).map(function(l){ return '['+l.date+']'+l.content; });
+      if (pl.length) ctx += '近期動態:'+pl.join(' | ')+'\n';
     }
-  }
-  var extra=el('reportExtra').value;
-  var prompt='你是螢幕產品 PM，請根據以下資料撰寫專業的'+(type==='weekly'?'週報':'月報')+'（繁體中文）。\n日期:'+new Date().toLocaleDateString('zh-TW')+'\n'+ctx+(extra?'\n額外備註:'+extra:'')+'\n\n格式：\n1. 整體摘要\n2. 各專案狀態\n3. Key Issues 追蹤\n4. 下週重點工作\n5. 需主管關注事項';
-  el('reportPlaceholder').style.display='none';el('reportOutput').style.display='none';
-  el('reportLoading').style.display='block';el('copyBtn').style.display='none';
-  fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1200,messages:[{role:'user',content:prompt}]})
-  }).then(function(r){return r.json();}).then(function(d){
-    var text='';if(d.content){for(var i=0;i<d.content.length;i++)text+=d.content[i].text||'';}
-    el('reportLoading').style.display='none';el('reportOutput').style.display='block';
-    el('reportOutput').textContent=text||'（無回應）';el('copyBtn').style.display='inline-flex';
-  }).catch(function(e){
-    el('reportLoading').style.display='none';el('reportOutput').style.display='block';
-    el('reportOutput').textContent='⚠ 連線失敗：'+e.message;
+  });
+  var extra = el('reportExtra').value;
+  var prompt = '你是螢幕產品PM，請根據以下資料撰寫專業的'+(type==='weekly'?'週報':'月報')+'（繁體中文）。\n日期:'+new Date().toLocaleDateString('zh-TW')+'\n'+ctx+(extra?'\n額外備註:'+extra:'')+'\n\n格式：\n1. 整體摘要\n2. 各專案狀態\n3. Key Issues 追蹤\n4. 下週重點工作\n5. 需主管關注事項';
+  el('reportPlaceholder').style.display = 'none';
+  el('reportOutput').style.display = 'none';
+  el('reportLoading').style.display = 'block';
+  el('copyBtn').style.display = 'none';
+  fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body: JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1200,messages:[{role:'user',content:prompt}]})
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    var text = '';
+    if (d.content) d.content.forEach(function(c){ text += c.text||''; });
+    el('reportLoading').style.display = 'none';
+    el('reportOutput').style.display = 'block';
+    el('reportOutput').textContent = text || '（無回應）';
+    el('copyBtn').style.display = 'inline-flex';
+  }).catch(function(e) {
+    el('reportLoading').style.display = 'none';
+    el('reportOutput').style.display = 'block';
+    el('reportOutput').textContent = '⚠ 連線失敗：' + e.message;
   });
 }
-function copyReport(){
-  navigator.clipboard.writeText(el('reportOutput').textContent).then(function(){
-    el('copyBtn').textContent='已複製 ✓';setTimeout(function(){el('copyBtn').textContent='複製';},2000);
+function copyReport() {
+  navigator.clipboard.writeText(el('reportOutput').textContent).then(function() {
+    el('copyBtn').textContent = '已複製 ✓';
+    setTimeout(function(){ el('copyBtn').textContent = '複製'; }, 2000);
   });
 }
 
-// ===== SPEC EXCEL =====
-function exportSpecExcel(projId){
-  var p=getById(state.projects,projId);if(!p)return;
-  var btn=el('specXlsxBtn');if(btn){btn.textContent='AI 補全中…';btn.disabled=true;}
-  var apiKey=getApiKey();
-  var s=p.spec||{}, td=todayStr();
-  function build(ai){
-    var rows=[
-      ['','Model Name','',p.name,'SI 回填','備註'],['','SI','',p.vendor||'SI回填'],
-      ['Display','Panel Size(diagonal)','',s.size||'27'],['','Panel Type','',s.panelType||'SI回填'],
-      ['','Panel Source','',p.vendor||'SI回填'],['','Panel P/N','',s.panelPN||'SI回填'],
-      ['','面板規別','','SI回填'],['','Flat/ Curve','','Flat'],['','Aspect Ratio','','16:9'],
+// ============================================================
+// EXCEL EXPORTS
+// ============================================================
+function exportSpecExcel(projId) {
+  var p = getById(state.projects, projId); if (!p) return;
+  var btn = el('specXlsxBtn');
+  if (btn) { btn.textContent = 'AI 補全中…'; btn.disabled = true; }
+  var apiKey = getApiKey();
+  var s = p.spec || {}, td = todayStr();
+  function build(ai) {
+    var rows = [
+      ['','Model Name','',p.name,'SI 回填','備註'],
+      ['','SI','',p.vendor||'SI回填'],
+      ['Display','Panel Size(diagonal)','',s.size||'27'],
+      ['','Panel Type','',s.panelType||'SI回填'],
+      ['','Panel Source','',p.vendor||'SI回填'],
+      ['','Panel P/N','',s.panelPN||'SI回填'],
+      ['','面板規別','','SI回填'],
+      ['','Flat/ Curve','','Flat'],
+      ['','Aspect Ratio','','16:9'],
       ['','HDR support','',s.hdr||'HDR400 Ready'],
       ['','Brightness (cd/m2)(Typ.)','','SDR '+(ai.brightness||'350')+'(Typ.)'],
-      ['','Resolution','',s.resolution||'SI回填'],['','Refresh Rate','',s.refreshRate||'SI回填'],
-      ['','Bezel Type','','3boardless'],['','Active Display Area(H*V)(mm)','','SI回填'],
-      ['','Local dimming','','N/A'],['','Display Surface','','Non-glare'],
+      ['','Resolution','',s.resolution||'SI回填'],
+      ['','Refresh Rate','',s.refreshRate||'SI回填'],
+      ['','Bezel Type','','3boardless'],
+      ['','Active Display Area(H*V)(mm)','','SI回填'],
+      ['','Local dimming','','N/A'],
+      ['','Display Surface','','Non-glare'],
       ['','Color Saturation (NTSC)','',ai.colorSaturation_NTSC||'TBD'],
       ['','Color Saturation (DCI-P3)','',ai.colorSaturation_P3||'TBD'],
       ['','Color Saturation (sRGB)','',ai.colorSaturation_sRGB||(s.colorGamut||'TBD')],
       ['','Response Time-Typ.-GTG(Native)','','SI回填'],
-      ['','Response Time-Typ.-MPRT','','To be verified during NPI'],['','Flicker-free','','Yes'],
+      ['','Response Time-Typ.-MPRT','','To be verified during NPI'],
+      ['','Flicker-free','','Yes'],
       ['Major Chip','Scaler PN','',ai.scalerPN||'SI回填'],
-      ['','HDR format supported?','HDR10','Yes'],['','','VESA DisplayHDR',s.hdr||'HDR400 Ready'],
+      ['','HDR format supported?','HDR10','Yes'],
+      ['','','VESA DisplayHDR',s.hdr||'HDR400 Ready'],
       ['','MPRT function supported?','','YES'],
-      ['I/O','HDMI Version','','SI回填'],['','HDMI QTY','',ai.hdmiQty||'2'],
-      ['','HDCP Support','','Yes'],['','DP Version','','Display Port 1.4 (DSC)'],
-      ['','DP QTY','',ai.dpQty||'1'],['','VGA','','N/A'],['','DVI','','N/A'],
-      ['','Audio out','','Yes'],['','USB- type A_V3.2','',ai.usbTypeA||'YES'],
-      ['','USB- type A QTY','','1'],['','USB- type B Version','','3.2'],
-      ['','USB- type B QTY','','1'],['','USB- type C Version','','N/A'],['','RJ-45','','N/A'],
+      ['I/O','HDMI Version','','SI回填'],
+      ['','HDMI QTY','',ai.hdmiQty||'2'],
+      ['','HDCP Support','','Yes'],
+      ['','DP Version','','Display Port 1.4 (DSC)'],
+      ['','DP QTY','',ai.dpQty||'1'],
+      ['','VGA','','N/A'],['','DVI','','N/A'],
+      ['','Audio out','','Yes'],
+      ['','USB- type A_V3.2','',ai.usbTypeA||'YES'],
+      ['','USB- type A QTY','','1'],
+      ['','USB- type B Version','','3.2'],['','USB- type B QTY','','1'],
+      ['','USB- type C Version','','N/A'],['','RJ-45','','N/A'],
       ['Mechanical Design','Tilt','','Yes'],['','Swivel','','Yes'],['','Pivot','','Yes'],
       ['','Height Adjustment','','Yes'],['','VESA Mount','','Yes'],
       ['','Neck Quick Release','','Yes'],['','OSD Button(五向鍵)','','Yes'],
@@ -1855,7 +1978,8 @@ function exportSpecExcel(projId){
       ['','Low Blue Light','','Yes HW'],['','Flicker Free','','Yes'],
       ['','WHQL','','Yes'],['','IEC62368-1:2014','','Yes'],
       ['','Energy Star','',ai.energyStar||'TBD'],
-      ['','EU RoHS','','Yes'],['','EU REACH','','Yes'],['','California Proposition 65','','Yes'],
+      ['','EU RoHS','','Yes'],['','EU REACH','','Yes'],
+      ['','California Proposition 65','','Yes'],
       ['Power','Power Type','','Build in'],['','Voltage','','SI回填'],
       ['Dimension','Phys. Dimension with Stand','','SI回填'],
       ['','Phys. Dimension w/o stand','','SI回填'],['','Box Dimension','','SI回填'],
@@ -1866,93 +1990,176 @@ function exportSpecExcel(projId){
       ['','Black Equalizer','','Yes'],['','Game Assist Function','','Yes'],
       ['','FW update','','Yes(USB)'],['','KVM','','N/A']
     ];
-    var wb=XLSX.utils.book_new();
-    var hw=XLSX.utils.aoa_to_sheet([['','Revision No.','Date','Change List','Made by'],[1,'',td,'Created - '+p.name,'PM']]);
-    XLSX.utils.book_append_sheet(wb,hw,'History');
-    var sw=XLSX.utils.aoa_to_sheet(rows);sw['!cols']=[{wch:18},{wch:55},{wch:30},{wch:35},{wch:12},{wch:25}];
-    XLSX.utils.book_append_sheet(wb,sw,'spec');
-    var mr=[['里程碑','計畫日期','完成狀態']];
-    for(var k=0;k<MS_ORDER.length;k++) mr.push([MS_ORDER[k],p.milestones[MS_ORDER[k]].date||'TBD',p.milestones[MS_ORDER[k]].done?'✓ 完成':'未完成']);
-    var mw=XLSX.utils.aoa_to_sheet(mr);mw['!cols']=[{wch:12},{wch:14},{wch:12}];
-    XLSX.utils.book_append_sheet(wb,mw,'Schedule');
-    XLSX.writeFile(wb,p.name+'_spec_'+td.replace(/-/g,'')+'.xlsx');
-    if(btn){btn.textContent='↓ 下載 Spec Excel';btn.disabled=false;}
+    var wb = XLSX.utils.book_new();
+    var hw = XLSX.utils.aoa_to_sheet([['','Revision No.','Date','Change List','Made by'],[1,'',td,'Created - '+p.name,'PM']]);
+    XLSX.utils.book_append_sheet(wb, hw, 'History');
+    var sw = XLSX.utils.aoa_to_sheet(rows);
+    sw['!cols'] = [{wch:18},{wch:55},{wch:30},{wch:35},{wch:12},{wch:25}];
+    XLSX.utils.book_append_sheet(wb, sw, 'spec');
+    var mr = [['里程碑','計畫日期','完成狀態']];
+    MS_ORDER.forEach(function(k) { mr.push([k, p.milestones[k]?p.milestones[k].date||'TBD':'TBD', p.milestones[k]&&p.milestones[k].done?'✓ 完成':'未完成']); });
+    var mw = XLSX.utils.aoa_to_sheet(mr);
+    mw['!cols'] = [{wch:12},{wch:14},{wch:12}];
+    XLSX.utils.book_append_sheet(wb, mw, 'Schedule');
+    XLSX.writeFile(wb, p.name+'_spec_'+td.replace(/-/g,'')+'.xlsx');
+    if (btn) { btn.textContent = '↓ 下載 Spec Excel'; btn.disabled = false; }
   }
-  if(!apiKey){build({});return;}
-  var prompt='根據螢幕產品資訊補全spec欄位，輸出純JSON無說明：產品:'+p.name+',尺寸:'+(s.size||'27')+'",解析度:'+(s.resolution||'')+',刷新率:'+(s.refreshRate||'')+',面板:'+(s.panelType||'')+',HDR:'+(s.hdr||'')+',連接埠:'+(s.connectivity||'')+'\nJSON:{brightness:"350",colorSaturation_NTSC:"72%",colorSaturation_P3:"90%",colorSaturation_sRGB:"99%",scalerPN:"9800",hdmiQty:"2",dpQty:"1",usbTypeA:"YES",freesync:"Freesync Premium PRO / Gsync Compatible",energyStar:"TBD",weight_net:"SI回填",weight_gross:"SI回填"}';
-  fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:400,messages:[{role:'user',content:prompt}]})})
-  .then(function(r){return r.json();}).then(function(d){
-    var text='';if(d.content){for(var i=0;i<d.content.length;i++)text+=d.content[i].text||'';}
-    var ai={};try{ai=JSON.parse(text.replace(/```json|```/g,'').trim());}catch(e){}build(ai);
-  }).catch(function(){build({});});
+  if (!apiKey) { build({}); return; }
+  var prompt = '根據螢幕產品資訊補全spec欄位，輸出純JSON無說明：產品:'+p.name+',尺寸:'+(s.size||'27')+'",解析度:'+(s.resolution||'')+',刷新率:'+(s.refreshRate||'')+',面板:'+(s.panelType||'')+',HDR:'+(s.hdr||'')+',連接埠:'+(s.connectivity||'')+'\nJSON格式:{brightness:"350",colorSaturation_NTSC:"72%",colorSaturation_P3:"90%",colorSaturation_sRGB:"99%",scalerPN:"9800",hdmiQty:"2",dpQty:"1",usbTypeA:"YES",freesync:"Freesync Premium PRO / Gsync Compatible",energyStar:"TBD",weight_net:"SI回填",weight_gross:"SI回填"}';
+  fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body: JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:400,messages:[{role:'user',content:prompt}]})
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    var text = ''; if (d.content) d.content.forEach(function(c){ text += c.text||''; });
+    var ai = {}; try { ai = JSON.parse(text.replace(/```json|```/g,'').trim()); } catch(e) {}
+    build(ai);
+  }).catch(function(){ build({}); });
 }
 
-// ===== SKU TABLE EXCEL =====
-function exportSKUTableExcel(projId){
-  var p=getById(state.projects,projId);if(!p)return;
-  var mb=p.name.replace(/\s+/g,''),td=todayStr();
-  var REGS=['AP','EK','CN','SA','US','AC','AU','EU','ZA'];
-  var PWR={AP:'TW+JP',EK:'EU+UK',CN:'CN',SA:'AR(ARGENTINA)+BR(BRAZIL)+US',US:'US',AC:' AC(Argentina + Chile)',AU:'AU',EU:'EU',ZA:'ZA'};
-  var PAL={AP:'E0',EK:'E0  (熱處理棧板)',CN:'E1',SA:'E1',US:'E1   (熱處理棧板)',AC:'E1',AU:'E1',EU:'E0  (熱處理棧板)',ZA:'E0'};
-  var WTW={AP:'V',SA:'V',US:'V',AC:'V',AU:'V'};
-  var WCN={CN:'V'};var EEI={EK:'V',EU:'V'};var MEPS={AU:'V'};
-  var CERT={EK:'V',SA:'V',US:'V'};var CAP={AP:'V'};var CCN={CN:'V'};var CAU={AU:'V'};
-  var headers=['機種名稱  (tiptop)','Model  (TIPTOP for EAN/UPC 編碼)','Region No.(全球料號)','20VM0  整機','品名規格','規格','紙摺/紙塑緩衝包材','廠商料號','EAN','UPC','Power_Cord','棧板尺寸(mm)','棧板要求','Cable_DSUB','Cable_DVI','Cable_HDMI2.1','Cable_MHL','Cable_DP1.4','Cable_AUDIO','Cable_USB','Cable_Type C','Support_CD','QSG','Warranty__WW','Warranty_CN','Warranty_TW','Rating_Label_WW','Rating_Label_CN','Rating_Label_India','US/SA/EK_Carton_Label','AP_Carton_Label','CN_Carton_Label','India_Carton_Label','AU_Carton_Label','CN_CE_Label','AU_MEPS_Label','EU_EEI_Label','EPEAT_Label','Feature Label','AORUS SEALING Label','GIGABYTE SEALING Label','CN 400服務專線','G-Sync Compatible Sticker','PULL Label','Others','Modified_Date'];
-  var dataRows=[headers];
-  for(var ri=0;ri<REGS.length;ri++){
-    var r=REGS[ri];
+function exportSKUTableExcel(projId) {
+  var p = getById(state.projects, projId); if (!p) return;
+  var mb = p.name.replace(/\s+/g,''), td = todayStr();
+  var REGS = ['AP','EK','CN','SA','US','AC','AU','EU','ZA'];
+  var PWR = {AP:'TW+JP',EK:'EU+UK',CN:'CN',SA:'AR(ARGENTINA)+BR(BRAZIL)+US',US:'US',AC:'AC(Argentina + Chile)',AU:'AU',EU:'EU',ZA:'ZA'};
+  var PAL = {AP:'E0',EK:'E0 (熱處理棧板)',CN:'E1',SA:'E1',US:'E1 (熱處理棧板)',AC:'E1',AU:'E1',EU:'E0 (熱處理棧板)',ZA:'E0'};
+  var headers = ['機種名稱','Model','Region No.','20VM0 整機','品名規格','規格','包材','廠商料號','EAN','UPC','Power_Cord','棧板尺寸','棧板要求','Cable_DSUB','Cable_DVI','Cable_HDMI2.1','Cable_MHL','Cable_DP1.4','Cable_AUDIO','Cable_USB','Cable_TypeC','QSG','Warranty_WW','Warranty_CN','Rating_Label_WW','Rating_Label_CN','AU_MEPS_Label','EU_EEI_Label','Modified_Date'];
+  var dataRows = [headers];
+  REGS.forEach(function(r) {
     dataRows.push([
-      ri===0?mb+'  ('+mb+')':'',mb+' '+r,mb+' '+r+'1','20VM0-'+mb+'BK-1'+r+'R',
-      'Monitor '+(p.spec&&p.spec.size?p.spec.size:'27')+"'' "+mb+' '+r,
-      PWR[r]||r,'',r==='AU'?'Y':'','','',PWR[r]||r,'1200*1000',PAL[r]||'E0',
-      'N/A','N/A','N/A','N/A','V','N/A','N/A','N/A','N/A','V',
-      'V',WCN[r]||'N/A',WTW[r]||'N/A',
-      'V','N/A','N/A',CERT[r]||'N/A',CAP[r]||'N/A',CCN[r]||'N/A','N/A',CAU[r]||'N/A',
-      CCN[r]||'N/A',MEPS[r]||'N/A',EEI[r]||'N/A',
-      'N/A','','N/A','','V','N/A','V','V',
-      td,r==='AU'?'全紙包材':''
+      r==='AP'?mb:'', mb+' '+r, mb+' '+r+'1', '20VM0-'+mb+'BK-1'+r+'R',
+      'Monitor '+(p.spec&&p.spec.size?p.spec.size:'27')+'" '+mb+' '+r,
+      PWR[r]||r, r==='AU'?'全紙包材':'', '', '', '', PWR[r]||r, '1200*1000', PAL[r]||'E0',
+      'N/A','N/A','N/A','N/A','V','N/A','N/A','N/A','V','V',
+      r==='CN'?'V':'N/A','V',r==='CN'?'V':'N/A',r==='AU'?'V':'N/A',r==='EU'||r==='EK'?'V':'N/A',td
     ]);
-  }
-  var wb=XLSX.utils.book_new();
-  var hw=XLSX.utils.aoa_to_sheet([['','Revision No.','Date','Change List','Made by'],[1,'',td,'Created - '+p.name,'PM']]);
-  XLSX.utils.book_append_sheet(wb,hw,'History');
-  var sw=XLSX.utils.aoa_to_sheet(dataRows);sw['!cols']=headers.map(function(){return{wch:15};});
-  XLSX.utils.book_append_sheet(wb,sw,'SKU Table');
-  XLSX.writeFile(wb,mb+'_SKU_TABLE_'+td.replace(/-/g,'')+'.xlsx');
+  });
+  var wb = XLSX.utils.book_new();
+  var hw = XLSX.utils.aoa_to_sheet([['','Revision No.','Date','Change List','Made by'],[1,'',td,'Created - '+p.name,'PM']]);
+  XLSX.utils.book_append_sheet(wb, hw, 'History');
+  var sw = XLSX.utils.aoa_to_sheet(dataRows);
+  sw['!cols'] = headers.map(function(){ return {wch:14}; });
+  XLSX.utils.book_append_sheet(wb, sw, 'SKU Table');
+  XLSX.writeFile(wb, mb+'_SKU_TABLE_'+td.replace(/-/g,'')+'.xlsx');
 }
 
-// ===== HELPERS =====
-function openModal(id){el(id).classList.add('open');}
-function closeModal(id){el(id).classList.remove('open');}
-function fillProjSel(selId){
-  var s=el(selId),html='';
-  for(var i=0;i<state.projects.length;i++) html+='<option value="'+state.projects[i].id+'">'+esc(state.projects[i].name)+'</option>';
-  s.innerHTML=html||'<option value="">無專案</option>';
+// ============================================================
+// HELPERS
+// ============================================================
+function openModal(id) { el(id).classList.add('open'); }
+function closeModal(id) { el(id).classList.remove('open'); }
+function fillProjSel(selId) {
+  var s = el(selId); if (!s) return;
+  var html = '';
+  state.projects.forEach(function(p){ html += '<option value="'+p.id+'">'+esc(p.name)+'</option>'; });
+  s.innerHTML = html || '<option value="">無專案</option>';
 }
-function fillFilterSel(selId){
-  var s=el(selId),cur=s.value,html='<option value="">所有專案</option>';
-  for(var i=0;i<state.projects.length;i++) html+='<option value="'+state.projects[i].id+'"'+(state.projects[i].id===cur?' selected':'')+'>'+esc(state.projects[i].name)+'</option>';
-  s.innerHTML=html;
+function fillFilterSel(selId) {
+  var s = el(selId); if (!s) return;
+  var cur = s.value;
+  var html = '<option value="">所有專案</option>';
+  state.projects.forEach(function(p){ html += '<option value="'+p.id+'"'+(p.id===cur?' selected':'')+'>'+esc(p.name)+'</option>'; });
+  s.innerHTML = html;
 }
-function fillSelects(){
+function fillSelects() {
   ['timelineProjectFilter','issueProjectFilter','logProjectFilter'].forEach(fillFilterSel);
   ['iProject','lProject'].forEach(fillProjSel);
 }
 
-// Close on overlay click
-var overlays=document.querySelectorAll('.modal-overlay');
-for(var oi=0;oi<overlays.length;oi++){
-  overlays[oi].addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
-}
+// Close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(function(o) {
+  o.addEventListener('click', function(e) { if (e.target===this) this.classList.remove('open'); });
+});
 
 // Load saved API key
-var savedKey=localStorage.getItem('pmApiKey');
-if(savedKey&&el('apikeyInput')) el('apikeyInput').value=savedKey;
+var savedKey = localStorage.getItem('pmApiKey');
+if (savedKey && el('apikeyInput')) el('apikeyInput').value = savedKey;
 
-// Init
+// ============================================================
+// INIT — load from Supabase (falls back to localStorage)
+// ============================================================
 updateStats();
 renderNav();
 renderDashboard();
+dbLoad();
+
+/*
+=================================================================
+📋 SUPABASE DATABASE SETUP — 請在 Supabase SQL Editor 執行以下 SQL
+=================================================================
+
+-- 1. 專案表
+CREATE TABLE pm_projects (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  vendor TEXT,
+  type TEXT DEFAULT 'Consumer Monitor',
+  status TEXT DEFAULT 'planning',
+  owner TEXT,
+  color TEXT DEFAULT '#2563eb',
+  notes TEXT,
+  spec JSONB DEFAULT '{}',
+  milestones JSONB DEFAULT '{}',
+  launch DATE,
+  progress INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Issues 表
+CREATE TABLE pm_issues (
+  id TEXT PRIMARY KEY,
+  project_id TEXT REFERENCES pm_projects(id) ON DELETE CASCADE,
+  desc TEXT NOT NULL,
+  priority TEXT DEFAULT 'medium',
+  status TEXT DEFAULT 'open',
+  owner TEXT,
+  due DATE,
+  milestone TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. 動態日誌表
+CREATE TABLE pm_logs (
+  id TEXT PRIMARY KEY,
+  project_id TEXT REFERENCES pm_projects(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  date DATE NOT NULL,
+  type TEXT DEFAULT 'update',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. SKU 表
+CREATE TABLE pm_skus (
+  id TEXT PRIMARY KEY,
+  model TEXT,
+  series TEXT,
+  size TEXT,
+  panel TEXT,
+  resolution TEXT,
+  hz TEXT,
+  hdr TEXT,
+  connectivity TEXT,
+  market TEXT,
+  status TEXT DEFAULT 'planning',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. 開啟 Row Level Security（先允許全部，之後可改為 auth）
+ALTER TABLE pm_projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pm_issues ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pm_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pm_skus ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "allow_all_projects" ON pm_projects FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all_issues" ON pm_issues FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all_logs" ON pm_logs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all_skus" ON pm_skus FOR ALL USING (true) WITH CHECK (true);
+
+=================================================================
+⚠️ 完成 SQL 後，還需要將程式碼第 15 行的 SUPABASE_ANON_KEY
+替換為 Supabase Dashboard → Settings → API → anon/public key
+=================================================================
+*/
 </script>
 </body>
 </html>
