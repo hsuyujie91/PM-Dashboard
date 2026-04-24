@@ -1052,9 +1052,9 @@ var SUPABASE_URL = 'https://yqnbdlzuvcwzcnscszgj.supabase.co';
 var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxbmJkbHp1dmN3emNuc2NzemdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4NDEzOTUsImV4cCI6MjA5MjQxNzM5NX0.XxaTbaG2Esy3II71xP8aamkjmpOQxVcD4mpyc9WbVOs';
 // NOTE: Replace SUPABASE_ANON_KEY with your actual anon/public key from Supabase Dashboard > Settings > API
 
-var supabase = null;
+var db = null;
 try {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 } catch(e) {
   console.warn('Supabase init failed, falling back to localStorage:', e);
 }
@@ -1101,17 +1101,17 @@ loadLocalState();
 // ============================================================
 
 async function dbLoad() {
-  if (!supabase) {
+  if (!db) {
     setSyncStatus('error', '未連線 Supabase，使用本機資料');
     return;
   }
   setSyncStatus('syncing', '同步資料中...');
   try {
     var [p, i, l, s] = await Promise.all([
-      supabase.from('pm_projects').select('*').order('created_at', {ascending: true}),
-      supabase.from('pm_issues').select('*').order('created_at', {ascending: true}),
-      supabase.from('pm_logs').select('*').order('date', {ascending: false}),
-      supabase.from('pm_skus').select('*').order('created_at', {ascending: true})
+      db.from('pm_projects').select('*').order('created_at', {ascending: true}),
+      db.from('pm_issues').select('*').order('created_at', {ascending: true}),
+      db.from('pm_logs').select('*').order('date', {ascending: false}),
+      db.from('pm_skus').select('*').order('created_at', {ascending: true})
     ]);
     if (p.error || i.error || l.error || s.error) throw (p.error || i.error || l.error || s.error);
     state.projects = (p.data || []).map(dbRowToProject);
@@ -1147,7 +1147,7 @@ function dbRowToIssue(row) {
   return {
     id: row.id,
     projectId: row.project_id,
-    desc: row.desc || '',
+    desc: row.description || '',
     priority: row.priority || 'medium',
     status: row.status || 'open',
     owner: row.owner || '',
@@ -1163,68 +1163,68 @@ function defaultMilestones() {
 }
 
 async function dbSaveProject(p) {
-  if (!supabase) { saveLocalState(); setSyncStatus('error','本機儲存'); return; }
+  if (!db) { saveLocalState(); setSyncStatus('error','本機儲存'); return; }
   setSyncStatus('syncing','儲存中...');
   var row = {
     id: p.id, name: p.name, vendor: p.vendor, type: p.type,
     status: p.status, owner: p.owner, color: p.color, notes: p.notes,
     spec: p.spec, milestones: p.milestones
   };
-  var { error } = await supabase.from('pm_projects').upsert(row);
+  var { error } = await db.from('pm_projects').upsert(row);
   if (error) { console.error(error); setSyncStatus('error','儲存失敗: '+error.message); }
   else { saveLocalState(); setSyncStatus('connected','已儲存'); }
 }
 
 async function dbDeleteProject(id) {
-  if (!supabase) { saveLocalState(); return; }
-  await supabase.from('pm_projects').delete().eq('id', id);
-  await supabase.from('pm_issues').delete().eq('project_id', id);
-  await supabase.from('pm_logs').delete().eq('project_id', id);
+  if (!db) { saveLocalState(); return; }
+  await db.from('pm_projects').delete().eq('id', id);
+  await db.from('pm_issues').delete().eq('project_id', id);
+  await db.from('pm_logs').delete().eq('project_id', id);
   saveLocalState();
   setSyncStatus('connected','已刪除');
 }
 
 async function dbSaveIssue(iss) {
-  if (!supabase) { saveLocalState(); return; }
+  if (!db) { saveLocalState(); return; }
   setSyncStatus('syncing','儲存中...');
   var row = {
-    id: iss.id, project_id: iss.projectId, desc: iss.desc,
+    id: iss.id, project_id: iss.projectId, description: iss.desc,
     priority: iss.priority, status: iss.status, owner: iss.owner,
     due: iss.due || null, milestone: iss.milestone || null
   };
-  var { error } = await supabase.from('pm_issues').upsert(row);
+  var { error } = await db.from('pm_issues').upsert(row);
   if (error) { console.error(error); setSyncStatus('error','儲存失敗'); }
   else { saveLocalState(); setSyncStatus('connected','已儲存'); }
 }
 
 async function dbDeleteIssue(id) {
-  if (!supabase) { saveLocalState(); return; }
-  await supabase.from('pm_issues').delete().eq('id', id);
+  if (!db) { saveLocalState(); return; }
+  await db.from('pm_issues').delete().eq('id', id);
   saveLocalState();
 }
 
 async function dbSaveLog(log) {
-  if (!supabase) { saveLocalState(); return; }
+  if (!db) { saveLocalState(); return; }
   setSyncStatus('syncing','儲存中...');
   var row = {
     id: log.id, project_id: log.projectId, content: log.content,
     date: log.date, type: log.type
   };
-  var { error } = await supabase.from('pm_logs').upsert(row);
+  var { error } = await db.from('pm_logs').upsert(row);
   if (error) { console.error(error); setSyncStatus('error','儲存失敗'); }
   else { saveLocalState(); setSyncStatus('connected','已儲存'); }
 }
 
 async function dbSaveSKU(sku) {
-  if (!supabase) { saveLocalState(); return; }
-  var { error } = await supabase.from('pm_skus').upsert(sku);
+  if (!db) { saveLocalState(); return; }
+  var { error } = await db.from('pm_skus').upsert(sku);
   if (error) console.error(error);
   else saveLocalState();
 }
 
 async function dbDeleteSKU(id) {
-  if (!supabase) { saveLocalState(); return; }
-  await supabase.from('pm_skus').delete().eq('id', id);
+  if (!db) { saveLocalState(); return; }
+  await db.from('pm_skus').delete().eq('id', id);
   saveLocalState();
 }
 
