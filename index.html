@@ -476,6 +476,21 @@
 
   .sidebar { box-shadow: 1px 0 0 var(--border); }
   .topbar { box-shadow: 0 1px 0 var(--border); }
+
+  /* DRAG HANDLE */
+  .nav-drag-handle {
+    cursor: grab;
+    color: var(--text3);
+    font-size: 13px;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s;
+    line-height: 1;
+    padding-right: 2px;
+  }
+  .nav-item:hover .nav-drag-handle { opacity: 1; }
+  .nav-item.drag-over { border: 1px dashed var(--accent); background: rgba(47,110,245,0.06); }
+  .nav-item.dragging { opacity: 0.4; }
 </style>
 </head>
 <body>
@@ -1108,7 +1123,7 @@ async function dbLoad() {
   setSyncStatus('syncing', '同步資料中...');
   try {
     var [p, i, l, s] = await Promise.all([
-      db.from('pm_projects').select('*').order('created_at', {ascending: true}),
+      db.from('pm_projects').select('*').order('sort_order', {ascending: true}).order('created_at', {ascending: true}),
       db.from('pm_issues').select('*').order('created_at', {ascending: true}),
       db.from('pm_logs').select('*').order('date', {ascending: false}),
       db.from('pm_skus').select('*').order('created_at', {ascending: true})
@@ -1139,6 +1154,7 @@ function dbRowToProject(row) {
     owner: row.owner || '',
     color: row.color || '#2563eb',
     notes: row.notes || '',
+    sort_order: row.sort_order || 0,
     spec: row.spec || {},
     milestones: row.milestones || defaultMilestones()
   };
@@ -1168,7 +1184,7 @@ async function dbSaveProject(p) {
   var row = {
     id: p.id, name: p.name, vendor: p.vendor, type: p.type,
     status: p.status, owner: p.owner, color: p.color, notes: p.notes,
-    spec: p.spec, milestones: p.milestones
+    spec: p.spec, milestones: p.milestones, sort_order: p.sort_order || 0
   };
   var { error } = await db.from('pm_projects').upsert(row);
   if (error) { console.error(error); setSyncStatus('error','儲存失敗: '+error.message); }
@@ -1291,14 +1307,68 @@ function refreshAll() {
   if (currentPage === 'project' && currentProjId) renderProjDetail(currentProjId);
 }
 
+// Vendor → colour mapping
+function vendorColor(vendor) {
+  var v = (vendor || '').trim().toUpperCase();
+  if (v === 'KTC') return '#7dd3fc';
+  if (v === 'TPV') return '#2563eb';
+  if (v.indexOf('AMTRAN') !== -1) return '#ef4444';
+  if (v.indexOf('MOKA') !== -1 || v === 'SI/MOKA' || v === 'MOKA') return '#eab308';
+  if (v === 'CTX') return '#22c55e';
+  return '#9ca3af';
+}
+
+// Drag state
+var navDragSrcIdx = null;
+
 function renderNav() {
   var html = '';
-  state.projects.forEach(function(p) {
-    var c = p.color || '#2563eb';
+  state.projects.forEach(function(p, idx) {
+    var c = vendorColor(p.vendor);
     var act = (currentPage === 'project' && currentProjId === p.id) ? ' active' : '';
-    html += '<div class="nav-item'+act+'" onclick="showPage(\'project\',\''+p.id+'\')"><span style="width:7px;height:7px;border-radius:50%;background:'+c+';flex-shrink:0;display:inline-block"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.name)+'</span></div>';
+    html += '<div class="nav-item'+act+'" draggable="true" data-projid="'+p.id+'" data-idx="'+idx+'"'
+          + ' ondragstart="navDragStart(event)" ondragover="navDragOver(event)" ondrop="navDrop(event)" ondragend="navDragEnd(event)"'
+          + ' onclick="showPage(\'project\',\''+p.id+'\')">'
+          + '<span class="nav-drag-handle" onclick="event.stopPropagation()">⠿</span>'
+          + '<span style="width:7px;height:7px;border-radius:50%;background:'+c+';flex-shrink:0;display:inline-block"></span>'
+          + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.name)+'</span>'
+          + '</div>';
   });
   el('navProjects').innerHTML = html;
+}
+
+function navDragStart(e) {
+  navDragSrcIdx = +e.currentTarget.dataset.idx;
+  e.dataTransfer.effectAllowed = 'move';
+  e.currentTarget.classList.add('dragging');
+}
+function navDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('#navProjects .nav-item').forEach(function(n){ n.classList.remove('drag-over'); });
+  e.currentTarget.classList.add('drag-over');
+  return false;
+}
+function navDrop(e) {
+  e.stopPropagation();
+  var targetIdx = +e.currentTarget.dataset.idx;
+  if (navDragSrcIdx === null || navDragSrcIdx === targetIdx) { navDragSrcIdx = null; return false; }
+  var moved = state.projects.splice(navDragSrcIdx, 1)[0];
+  state.projects.splice(targetIdx, 0, moved);
+  state.projects.forEach(function(p, i) {
+    p.sort_order = i;
+    dbSaveProject(p);
+  });
+  navDragSrcIdx = null;
+  renderNav();
+  return false;
+}
+function navDragEnd(e) {
+  document.querySelectorAll('#navProjects .nav-item').forEach(function(n){
+    n.classList.remove('dragging');
+    n.classList.remove('drag-over');
+  });
+  navDragSrcIdx = null;
 }
 
 // ============================================================
