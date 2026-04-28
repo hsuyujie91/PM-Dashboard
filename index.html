@@ -1339,15 +1339,15 @@ function vendorColor(vendor) {
   return '#9ca3af';
 }
 
-// Drag state
-var navDragSrcIdx = null;
+// Drag state — use project ID, never array index
+var navDragSrcId = null;
 
 function renderNav() {
   var html = '';
-  state.projects.filter(function(p){ return !p.archived; }).forEach(function(p, idx) {
+  state.projects.filter(function(p){ return !p.archived; }).forEach(function(p) {
     var c = vendorColor(p.vendor);
     var act = (currentPage === 'project' && currentProjId === p.id) ? ' active' : '';
-    html += '<div class="nav-item'+act+'" draggable="true" data-projid="'+p.id+'" data-idx="'+idx+'"'
+    html += '<div class="nav-item'+act+'" draggable="true" data-projid="'+p.id+'"'
           + ' ondragstart="navDragStart(event)" ondragover="navDragOver(event)" ondrop="navDrop(event)" ondragend="navDragEnd(event)"'
           + ' onclick="showPage(\'project\',\''+p.id+'\')">'
           + '<span class="nav-drag-handle" onclick="event.stopPropagation()">⠿</span>'
@@ -1359,28 +1359,48 @@ function renderNav() {
 }
 
 function navDragStart(e) {
-  navDragSrcIdx = +e.currentTarget.dataset.idx;
+  navDragSrcId = e.currentTarget.dataset.projid;
   e.dataTransfer.effectAllowed = 'move';
-  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.setData('text/plain', navDragSrcId); // required for Firefox
+  setTimeout(function(){ // defer so the drag ghost renders first
+    var el2 = document.querySelector('#navProjects [data-projid="'+navDragSrcId+'"]');
+    if (el2) el2.classList.add('dragging');
+  }, 0);
 }
 function navDragOver(e) {
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
   document.querySelectorAll('#navProjects .nav-item').forEach(function(n){ n.classList.remove('drag-over'); });
-  e.currentTarget.classList.add('drag-over');
+  if (e.currentTarget.dataset.projid !== navDragSrcId) e.currentTarget.classList.add('drag-over');
   return false;
 }
 function navDrop(e) {
+  e.preventDefault();
   e.stopPropagation();
-  var targetIdx = +e.currentTarget.dataset.idx;
-  if (navDragSrcIdx === null || navDragSrcIdx === targetIdx) { navDragSrcIdx = null; return false; }
-  var moved = state.projects.splice(navDragSrcIdx, 1)[0];
-  state.projects.splice(targetIdx, 0, moved);
-  state.projects.forEach(function(p, i) {
-    p.sort_order = i;
-    dbSaveProject(p);
+  var targetId = e.currentTarget.dataset.projid;
+  if (!navDragSrcId || navDragSrcId === targetId) { navDragSrcId = null; return false; }
+
+  // Operate only on the visible (non-archived) list
+  var visible = state.projects.filter(function(p){ return !p.archived; });
+  var srcIdx = -1, tgtIdx = -1;
+  visible.forEach(function(p, i){
+    if (p.id === navDragSrcId) srcIdx = i;
+    if (p.id === targetId)     tgtIdx = i;
   });
-  navDragSrcIdx = null;
+  if (srcIdx === -1 || tgtIdx === -1) { navDragSrcId = null; return false; }
+
+  // Remove source and insert at target position
+  var moved = visible.splice(srcIdx, 1)[0];
+  visible.splice(tgtIdx, 0, moved);
+
+  // Assign new sort_order and persist
+  visible.forEach(function(p, i){ p.sort_order = i; dbSaveProject(p); });
+
+  // Rebuild state.projects: visible (sorted) + archived (untouched)
+  var archived = state.projects.filter(function(p){ return p.archived; });
+  state.projects = visible.concat(archived);
+
+  navDragSrcId = null;
   renderNav();
   return false;
 }
@@ -1389,7 +1409,7 @@ function navDragEnd(e) {
     n.classList.remove('dragging');
     n.classList.remove('drag-over');
   });
-  navDragSrcIdx = null;
+  navDragSrcId = null;
 }
 
 // ============================================================
