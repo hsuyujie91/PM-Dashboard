@@ -217,6 +217,24 @@
   .badge-blue { background: rgba(47,110,245,0.1); color: var(--accent); }
   .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
+  /* ISSUE TABLE */
+  .issue-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .issue-table th {
+    background: var(--surface2);
+    font-size: 10px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--text2);
+    padding: 8px 10px; text-align: left;
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap; position: sticky; top: 0; z-index: 2;
+  }
+  .issue-table td {
+    padding: 9px 10px; border-bottom: 1px solid var(--border);
+    vertical-align: top; font-size: 12.5px;
+  }
+  .issue-table tr:hover td { background: var(--surface2); }
+  .issue-table .fu-cell { white-space: pre-wrap; word-break: break-word; line-height: 1.65; font-size: 12px; color: var(--text); }
+  .issue-table .fu-cell .fu-date { color: var(--accent2); font-weight: 600; }
+
   /* PROJECT TABLE */
   .table-wrap { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
@@ -621,15 +639,25 @@
         <select class="form-select" style="width:200px" id="issueProjectFilter" onchange="renderIssues()">
           <option value="">所有專案</option>
         </select>
-        <select class="form-select" style="width:140px" id="issuePrioFilter" onchange="renderIssues()">
-          <option value="">所有優先度</option>
-          <option value="high">🔴 高</option>
-          <option value="medium">🟡 中</option>
-          <option value="low">🟢 低</option>
+        <select class="form-select" style="width:130px" id="issueStageFilter" onchange="renderIssues()">
+          <option value="">所有 Stage</option>
+          <option value="preKO">preKO</option>
+          <option value="KO">KO</option>
+          <option value="EVT">EVT</option>
+          <option value="DVT">DVT</option>
+          <option value="PVT">PVT</option>
+          <option value="preMP">preMP</option>
+          <option value="MP">MP</option>
+        </select>
+        <select class="form-select" style="width:120px" id="issueStatusFilter" onchange="renderIssues()">
+          <option value="">所有狀態</option>
+          <option value="open">未解決</option>
+          <option value="tracking">追蹤中</option>
+          <option value="resolved">已解決</option>
         </select>
         <button class="btn btn-primary" onclick="openIssueModal(null)">＋ 新增 Issue</button>
       </div>
-      <div class="card">
+      <div style="overflow-x:auto">
         <div id="issueList"><div class="empty-state"><div class="icon">⚑</div><p>尚無 Key Issues</p></div></div>
       </div>
     </div>
@@ -944,24 +972,24 @@
 
 <!-- Issue Modal -->
 <div class="modal-overlay" id="issueModal">
-  <div class="modal">
-    <div class="modal-title" id="issueModalTitle">新增 Key Issue</div>
-    <div class="form-group">
-      <label class="form-label">專案</label>
-      <select class="form-select" id="iProject"></select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Issue 描述</label>
-      <textarea class="form-textarea" id="iDesc" placeholder="描述問題..."></textarea>
-    </div>
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title" id="issueModalTitle">新增 Issue</div>
     <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">優先度</label>
-        <select class="form-select" id="iPrio">
-          <option value="high">🔴 高</option>
-          <option value="medium">🟡 中</option>
-          <option value="low">🟢 低</option>
+      <div class="form-group" style="flex:0 0 110px">
+        <label class="form-label">專案</label>
+        <select class="form-select" id="iProject"></select>
+      </div>
+      <div class="form-group" style="flex:0 0 90px">
+        <label class="form-label">Stage</label>
+        <select class="form-select" id="iStage">
+          <option value="">—</option>
+          <option>preKO</option><option>KO</option><option>EVT</option>
+          <option>DVT</option><option>PVT</option><option>preMP</option><option>MP</option>
         </select>
+      </div>
+      <div class="form-group" style="flex:0 0 100px">
+        <label class="form-label">Items</label>
+        <input class="form-input" id="iItems" placeholder="PM / HW / SW...">
       </div>
       <div class="form-group">
         <label class="form-label">狀態</label>
@@ -972,27 +1000,53 @@
         </select>
       </div>
     </div>
+    <div class="form-group">
+      <label class="form-label">Issue 描述</label>
+      <textarea class="form-textarea" id="iDesc" placeholder="描述問題..."></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Follow Up（每行一筆更新，建議格式：【MMDD】進度...）</label>
+      <textarea class="form-textarea" id="iFollowUp" placeholder="【0513】確認中..." style="min-height:80px"></textarea>
+    </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">負責人</label>
-        <input class="form-input" id="iOwner" placeholder="姓名">
+        <label class="form-label">DRI</label>
+        <input class="form-input" id="iDri" placeholder="責任人">
       </div>
       <div class="form-group">
-        <label class="form-label">目標解決日</label>
+        <label class="form-label">PIC</label>
+        <input class="form-input" id="iPic" placeholder="執行人">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Deadline</label>
         <input class="form-input" type="date" id="iDue">
       </div>
     </div>
     <div class="form-group">
-      <label class="form-label">影響里程碑</label>
-      <select class="form-select" id="iMilestone">
-        <option value="">—</option>
-        <option>preKO</option><option>KO</option><option>EVT</option>
-        <option>DVT</option><option>PVT</option><option>preMP</option><option>MP</option>
-      </select>
+      <label class="form-label">Notes</label>
+      <input class="form-input" id="iNotes" placeholder="備註">
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('issueModal')">取消</button>
       <button class="btn btn-primary" onclick="saveIssue()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Follow Up Quick-Add Modal -->
+<div class="modal-overlay" id="followUpModal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title">＋ 新增 Follow Up</div>
+    <div class="form-group">
+      <label class="form-label">進度更新</label>
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <span id="fuPrefix" style="font-weight:700;white-space:nowrap;padding-top:9px;font-size:13px;color:var(--accent2)"></span>
+        <textarea class="form-textarea" id="fuText" placeholder="輸入本次進度更新..." style="flex:1;min-height:72px"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('followUpModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveFollowUp()">新增</button>
     </div>
   </div>
 </div>
@@ -1178,11 +1232,17 @@ function dbRowToIssue(row) {
   return {
     id: row.id,
     projectId: row.project_id,
+    stage: row.stage || '',
+    items: row.items || '',
     desc: row.description || '',
-    priority: row.priority || 'medium',
-    status: row.status || 'open',
-    owner: row.owner || '',
+    followUp: row.follow_up || '',
+    dri: row.dri || '',
+    pic: row.pic || '',
     due: row.due || '',
+    status: row.status || 'open',
+    notes: row.notes || '',
+    priority: row.priority || 'medium',
+    owner: row.owner || '',
     milestone: row.milestone || ''
   };
 }
@@ -1220,8 +1280,13 @@ async function dbSaveIssue(iss) {
   setSyncStatus('syncing','儲存中...');
   var row = {
     id: iss.id, project_id: iss.projectId, description: iss.desc,
-    priority: iss.priority, status: iss.status, owner: iss.owner,
-    due: iss.due || null, milestone: iss.milestone || null
+    stage: iss.stage || '', items: iss.items || '',
+    follow_up: iss.followUp || '',
+    dri: iss.dri || '', pic: iss.pic || '',
+    status: iss.status, due: iss.due || null,
+    notes: iss.notes || '',
+    priority: iss.priority || 'medium',
+    owner: iss.owner || '', milestone: iss.milestone || null
   };
   var { error } = await db.from('pm_issues').upsert(row);
   if (error) { console.error(error); setSyncStatus('error','儲存失敗'); }
@@ -1471,17 +1536,23 @@ function renderDashboard() {
     });
     el('dashLogList').innerHTML = html2;
   }
-  var hi = state.issues.filter(function(iss){ return iss.priority==='high' && iss.status!=='resolved'; }).sort(issueSort);
+  var hi = state.issues.filter(function(iss){ return iss.status!=='resolved'; }).sort(issueSort);
   if (!hi.length) {
-    el('dashIssueList').innerHTML = '<div class="empty-state"><div class="icon">✓</div><p>目前沒有高優先 issues</p></div>';
+    el('dashIssueList').innerHTML = '<div class="empty-state"><div class="icon">✓</div><p>目前沒有未解決 issues</p></div>';
   } else {
     var html3 = '';
-    hi.slice(0,4).forEach(function(iss) {
+    hi.slice(0,5).forEach(function(iss) {
       var proj = getById(state.projects, iss.projectId);
-      html3 += '<div class="issue-item"><div style="font-size:16px;flex-shrink:0">🔴</div>'
-        + '<div class="issue-text" style="word-break:break-word"><div>'+esc(iss.desc)+'</div>'
-        + '<div class="issue-meta">'+esc(proj?proj.name:'—')+' · '+esc(iss.owner||'—')+' · '+(iss.due?esc(iss.due):'—')+(iss.milestone?' → '+iss.milestone:'')+'</div></div>'
-        + '<div style="flex-shrink:0"><button class="btn btn-ghost btn-sm" title="編輯" onclick="openEditIssueModal(\''+iss.id+'\')">✎</button></div></div>';
+      var bc = iss.status==='tracking' ? 'badge-yellow' : 'badge-red';
+      var bt = iss.status==='tracking' ? '追蹤中' : '未解決';
+      html3 += '<div class="issue-item">'
+        + '<div style="flex-shrink:0"><span class="badge '+bc+'" style="font-size:10px">'+bt+'</span></div>'
+        + '<div class="issue-text" style="word-break:break-word">'
+        + '<div>'+esc(iss.desc)+'</div>'
+        + '<div class="issue-meta">'+esc(proj?proj.name:'—')+(iss.stage?' · '+esc(iss.stage):'')+(iss.dri?' · '+esc(iss.dri):'')+(iss.due?' · '+esc(iss.due):'')+'</div>'
+        + '</div>'
+        + '<div style="flex-shrink:0"><button class="btn btn-ghost btn-sm" title="編輯" onclick="openEditIssueModal(\''+iss.id+'\')">✎</button></div>'
+        + '</div>';
     });
     el('dashIssueList').innerHTML = html3;
   }
@@ -1669,24 +1740,50 @@ function buildMSPane(p) {
 
 function buildIssuesPane(projId) {
   var issues = state.issues.filter(function(iss){ return iss.projectId===projId; }).sort(issueSort);
-  var html = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3)">Action Issues</div><button class="btn btn-primary btn-sm" onclick="openIssueModal(\''+projId+'\')">＋ 新增</button></div>';
-  if (!issues.length) { html += '<div class="empty-state" style="padding:24px"><p>尚無 Issue</p></div>'; }
-  else {
-    issues.forEach(function(iss) {
-      var op = iss.status==='resolved' ? '0.5' : '1';
+  var html = '<div class="card" style="padding:0;overflow:hidden">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)">'
+    + '<div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3)">Action Issues</div>'
+    + '<button class="btn btn-primary btn-sm" onclick="openIssueModal(\''+projId+'\')">＋ 新增</button>'
+    + '</div>';
+  if (!issues.length) {
+    html += '<div class="empty-state" style="padding:24px"><p>尚無 Issue</p></div>';
+  } else {
+    html += '<div style="overflow-x:auto"><table class="issue-table"><thead><tr>'
+      + '<th style="width:36px">#</th>'
+      + '<th style="width:64px">Stage</th>'
+      + '<th style="width:80px">Items</th>'
+      + '<th style="min-width:160px">Issue</th>'
+      + '<th style="min-width:200px">Follow Up</th>'
+      + '<th style="width:72px">DRI</th>'
+      + '<th style="width:72px">PIC</th>'
+      + '<th style="width:86px">Deadline</th>'
+      + '<th style="width:76px">Status</th>'
+      + '<th style="min-width:80px">Notes</th>'
+      + '<th style="width:72px"></th>'
+      + '</tr></thead><tbody>';
+    issues.forEach(function(iss, i) {
       var bc = iss.status==='resolved' ? 'badge-green' : (iss.status==='tracking' ? 'badge-yellow' : 'badge-red');
       var bt = iss.status==='resolved' ? '已解決' : (iss.status==='tracking' ? '追蹤中' : '未解決');
-      html += '<div class="issue-item" style="opacity:'+op+'">'
-        + '<div style="font-size:16px;flex-shrink:0">'+(PRIO_ICON[iss.priority]||'⚪')+'</div>'
-        + '<div class="issue-text" style="word-break:break-word"><div>'+esc(iss.desc)+'</div>'
-        + '<div class="issue-meta">👤 '+esc(iss.owner||'—')+' · 📅 '+(iss.due?esc(iss.due):'—')+(iss.milestone?' → '+iss.milestone:'')+'</div></div>'
-        + '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0">'
-        + '<span class="badge '+bc+'">'+bt+'</span>'
+      var fuHtml = iss.followUp ? esc(iss.followUp).replace(/【(\d{4})】/g,'<span class="fu-date">【$1】</span>').replace(/\n/g,'<br>') : '<span style="color:var(--text3)">—</span>';
+      html += '<tr style="opacity:'+(iss.status==='resolved'?'0.55':'1')+'">'
+        + '<td style="text-align:center;color:var(--text3);font-size:11px">'+(i+1)+'</td>'
+        + '<td>'+(iss.stage?'<span class="badge badge-blue" style="font-size:10px">'+esc(iss.stage)+'</span>':'<span style="color:var(--text3)">—</span>')+'</td>'
+        + '<td style="font-size:12px">'+esc(iss.items||'—')+'</td>'
+        + '<td style="word-break:break-word;white-space:pre-wrap">'+esc(iss.desc)+'</td>'
+        + '<td class="fu-cell">'+fuHtml+'</td>'
+        + '<td>'+esc(iss.dri||'—')+'</td>'
+        + '<td>'+esc(iss.pic||'—')+'</td>'
+        + '<td style="white-space:nowrap">'+esc(iss.due||'—')+'</td>'
+        + '<td><span class="badge '+bc+'">'+bt+'</span></td>'
+        + '<td style="word-break:break-word">'+esc(iss.notes||'—')+'</td>'
+        + '<td><div style="display:flex;gap:3px;flex-wrap:nowrap">'
+        + '<button class="btn btn-ghost btn-sm" title="新增 Follow Up" onclick="appendFollowUp(\''+iss.id+'\')">＋</button>'
         + '<button class="btn btn-ghost btn-sm" title="編輯" onclick="openEditIssueModal(\''+iss.id+'\')">✎</button>'
-        + '<button class="btn btn-ghost btn-sm" onclick="toggleIssue(\''+iss.id+'\')">'+(iss.status==='resolved'?'重開':'解決')+'</button>'
         + '<button class="btn btn-danger btn-sm" onclick="deleteIssue(\''+iss.id+'\')">✕</button>'
-        + '</div></div>';
+        + '</div></td>'
+        + '</tr>';
     });
+    html += '</tbody></table></div>';
   }
   return html + '</div>';
 }
@@ -1817,25 +1914,30 @@ function saveMilestone() {
 var editIssueId = null;
 function openIssueModal(presetProjId) {
   editIssueId = null;
-  el('issueModalTitle').textContent = '新增 Key Issue';
+  el('issueModalTitle').textContent = '新增 Issue';
   fillProjSel('iProject');
   if (presetProjId && el('iProject')) el('iProject').value = presetProjId;
-  el('iDesc').value = ''; el('iOwner').value = ''; el('iDue').value = '';
-  el('iPrio').value = 'high'; el('iStatus').value = 'open'; el('iMilestone').value = '';
+  el('iStage').value = ''; el('iItems').value = '';
+  el('iDesc').value = ''; el('iFollowUp').value = '';
+  el('iDri').value = ''; el('iPic').value = '';
+  el('iDue').value = ''; el('iStatus').value = 'open'; el('iNotes').value = '';
   openModal('issueModal');
 }
 function openEditIssueModal(issueId) {
   var iss = getById(state.issues, issueId); if (!iss) return;
   editIssueId = issueId;
-  el('issueModalTitle').textContent = '編輯 Key Issue';
+  el('issueModalTitle').textContent = '編輯 Issue';
   fillProjSel('iProject');
   el('iProject').value = iss.projectId;
+  el('iStage').value = iss.stage || '';
+  el('iItems').value = iss.items || '';
   el('iDesc').value = iss.desc;
-  el('iPrio').value = iss.priority;
-  el('iStatus').value = iss.status;
-  el('iOwner').value = iss.owner || '';
+  el('iFollowUp').value = iss.followUp || '';
+  el('iDri').value = iss.dri || '';
+  el('iPic').value = iss.pic || '';
   el('iDue').value = iss.due || '';
-  el('iMilestone').value = iss.milestone || '';
+  el('iStatus').value = iss.status;
+  el('iNotes').value = iss.notes || '';
   openModal('issueModal');
 }
 function saveIssue() {
@@ -1843,16 +1945,21 @@ function saveIssue() {
   if (editIssueId) {
     var iss = getById(state.issues, editIssueId); if (!iss) return;
     iss.projectId = el('iProject').value; iss.desc = desc;
-    iss.priority = el('iPrio').value; iss.status = el('iStatus').value;
-    iss.owner = el('iOwner').value; iss.due = el('iDue').value;
-    iss.milestone = el('iMilestone').value;
+    iss.stage = el('iStage').value; iss.items = el('iItems').value;
+    iss.followUp = el('iFollowUp').value;
+    iss.dri = el('iDri').value; iss.pic = el('iPic').value;
+    iss.due = el('iDue').value; iss.status = el('iStatus').value;
+    iss.notes = el('iNotes').value;
     dbSaveIssue(iss);
   } else {
     var iss = {
       id: mkId(), projectId: el('iProject').value, desc: desc,
-      priority: el('iPrio').value, status: el('iStatus').value,
-      owner: el('iOwner').value, due: el('iDue').value,
-      milestone: el('iMilestone').value
+      stage: el('iStage').value, items: el('iItems').value,
+      followUp: el('iFollowUp').value,
+      dri: el('iDri').value, pic: el('iPic').value,
+      due: el('iDue').value, status: el('iStatus').value,
+      notes: el('iNotes').value,
+      priority: 'medium', owner: '', milestone: ''
     };
     state.issues.push(iss);
     dbSaveIssue(iss);
@@ -1878,6 +1985,29 @@ function deleteIssue(id) {
   if (currentPage === 'issues') renderIssues();
   if (currentPage === 'project' && currentProjId) renderProjDetail(currentProjId);
 }
+var appendFollowUpId = null;
+function appendFollowUp(issueId) {
+  appendFollowUpId = issueId;
+  var now = new Date();
+  var mmdd = ('0'+(now.getMonth()+1)).slice(-2) + ('0'+now.getDate()).slice(-2);
+  el('fuPrefix').textContent = '【'+mmdd+'】';
+  el('fuText').value = '';
+  openModal('followUpModal');
+}
+function saveFollowUp() {
+  var iss = getById(state.issues, appendFollowUpId); if (!iss) return;
+  var text = el('fuText').value.trim();
+  if (text) {
+    var entry = el('fuPrefix').textContent + text;
+    iss.followUp = iss.followUp ? iss.followUp + '\n' + entry : entry;
+    dbSaveIssue(iss);
+  }
+  appendFollowUpId = null;
+  closeModal('followUpModal');
+  if (currentPage === 'issues') renderIssues();
+  if (currentPage === 'project' && currentProjId) renderProjDetail(currentProjId);
+}
+
 function issueSort(a, b) {
   // Primary: due date descending (latest first); Secondary: id descending (newest created first)
   var da = a.due ? new Date(a.due) : null;
@@ -1889,29 +2019,55 @@ function issueSort(a, b) {
 }
 function renderIssues() {
   fillFilterSel('issueProjectFilter');
-  var pf = el('issueProjectFilter').value, pr = el('issuePrioFilter').value;
+  var pf = el('issueProjectFilter').value;
+  var sf = el('issueStageFilter') ? el('issueStageFilter').value : '';
+  var stf = el('issueStatusFilter') ? el('issueStatusFilter').value : '';
   var list = state.issues.filter(function(iss) {
     if (pf && iss.projectId !== pf) return false;
-    if (pr && iss.priority !== pr) return false;
+    if (sf && iss.stage !== sf) return false;
+    if (stf && iss.status !== stf) return false;
     return true;
   }).sort(issueSort);
   if (!list.length) { el('issueList').innerHTML = '<div class="empty-state"><div class="icon">⚑</div><p>尚無 Key Issues</p></div>'; return; }
-  var html = '';
-  list.forEach(function(iss) {
+  var html = '<table class="issue-table"><thead><tr>'
+    + '<th style="width:36px">#</th>'
+    + '<th style="width:48px">專案</th>'
+    + '<th style="width:64px">Stage</th>'
+    + '<th style="width:72px">Items</th>'
+    + '<th style="min-width:160px">Issue</th>'
+    + '<th style="min-width:200px">Follow Up</th>'
+    + '<th style="width:72px">DRI</th>'
+    + '<th style="width:72px">PIC</th>'
+    + '<th style="width:86px">Deadline</th>'
+    + '<th style="width:76px">Status</th>'
+    + '<th style="min-width:80px">Notes</th>'
+    + '<th style="width:72px"></th>'
+    + '</tr></thead><tbody>';
+  list.forEach(function(iss, i) {
     var proj = getById(state.projects, iss.projectId);
     var bc = iss.status==='resolved' ? 'badge-green' : (iss.status==='tracking' ? 'badge-yellow' : 'badge-red');
     var bt = iss.status==='resolved' ? '已解決' : (iss.status==='tracking' ? '追蹤中' : '未解決');
-    html += '<div class="issue-item" style="opacity:'+(iss.status==='resolved'?'0.5':'1')+';">'
-      + '<div style="font-size:16px;flex-shrink:0">'+(PRIO_ICON[iss.priority]||'⚪')+'</div>'
-      + '<div class="issue-text" style="word-break:break-word"><div>'+esc(iss.desc)+'</div>'
-      + '<div class="issue-meta">'+esc(proj?proj.name:'—')+' · '+esc(iss.owner||'—')+' · '+(iss.due?esc(iss.due):'—')+(iss.milestone?' → '+iss.milestone:'')+'</div></div>'
-      + '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0">'
-      + '<span class="badge '+bc+'">'+bt+'</span>'
+    var fuHtml = iss.followUp ? esc(iss.followUp).replace(/【(\d{4})】/g,'<span class="fu-date">【$1】</span>').replace(/\n/g,'<br>') : '<span style="color:var(--text3)">—</span>';
+    html += '<tr style="opacity:'+(iss.status==='resolved'?'0.55':'1')+'">'
+      + '<td style="text-align:center;color:var(--text3);font-size:11px">'+(i+1)+'</td>'
+      + '<td style="font-size:11px;word-break:break-word">'+esc(proj?proj.name:'—')+'</td>'
+      + '<td>'+(iss.stage?'<span class="badge badge-blue" style="font-size:10px">'+esc(iss.stage)+'</span>':'<span style="color:var(--text3)">—</span>')+'</td>'
+      + '<td style="font-size:12px">'+esc(iss.items||'—')+'</td>'
+      + '<td style="word-break:break-word;white-space:pre-wrap">'+esc(iss.desc)+'</td>'
+      + '<td class="fu-cell">'+fuHtml+'</td>'
+      + '<td>'+esc(iss.dri||'—')+'</td>'
+      + '<td>'+esc(iss.pic||'—')+'</td>'
+      + '<td style="white-space:nowrap">'+esc(iss.due||'—')+'</td>'
+      + '<td><span class="badge '+bc+'">'+bt+'</span></td>'
+      + '<td style="word-break:break-word">'+esc(iss.notes||'—')+'</td>'
+      + '<td><div style="display:flex;gap:3px;flex-wrap:nowrap">'
+      + '<button class="btn btn-ghost btn-sm" title="新增 Follow Up" onclick="appendFollowUp(\''+iss.id+'\')">＋</button>'
       + '<button class="btn btn-ghost btn-sm" title="編輯" onclick="openEditIssueModal(\''+iss.id+'\')">✎</button>'
-      + '<button class="btn btn-ghost btn-sm" onclick="toggleIssue(\''+iss.id+'\')">'+(iss.status==='resolved'?'重開':'解決')+'</button>'
       + '<button class="btn btn-danger btn-sm" onclick="deleteIssue(\''+iss.id+'\')">✕</button>'
-      + '</div></div>';
+      + '</div></td>'
+      + '</tr>';
   });
+  html += '</tbody></table>';
   el('issueList').innerHTML = html;
 }
 
@@ -2427,11 +2583,17 @@ CREATE TABLE pm_projects (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. Issues 表
+-- 2. Issues 表（含新欄位）
 CREATE TABLE pm_issues (
   id TEXT PRIMARY KEY,
   project_id TEXT REFERENCES pm_projects(id) ON DELETE CASCADE,
-  desc TEXT NOT NULL,
+  description TEXT NOT NULL,
+  stage TEXT DEFAULT '',
+  items TEXT DEFAULT '',
+  follow_up TEXT DEFAULT '',
+  dri TEXT DEFAULT '',
+  pic TEXT DEFAULT '',
+  notes TEXT DEFAULT '',
   priority TEXT DEFAULT 'medium',
   status TEXT DEFAULT 'open',
   owner TEXT,
@@ -2439,6 +2601,14 @@ CREATE TABLE pm_issues (
   milestone TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ⚠️ 若已有舊資料表，請執行以下 ALTER TABLE 新增欄位：
+ALTER TABLE pm_issues ADD COLUMN IF NOT EXISTS stage TEXT DEFAULT '';
+ALTER TABLE pm_issues ADD COLUMN IF NOT EXISTS items TEXT DEFAULT '';
+ALTER TABLE pm_issues ADD COLUMN IF NOT EXISTS follow_up TEXT DEFAULT '';
+ALTER TABLE pm_issues ADD COLUMN IF NOT EXISTS dri TEXT DEFAULT '';
+ALTER TABLE pm_issues ADD COLUMN IF NOT EXISTS pic TEXT DEFAULT '';
+ALTER TABLE pm_issues ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT '';
 
 -- 3. 動態日誌表
 CREATE TABLE pm_logs (
